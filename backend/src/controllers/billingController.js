@@ -286,8 +286,10 @@ export const recordInvoicePayment = asyncHandler(async (req, res) => {
 
   const amountReceived = Number(req.body.amountReceived || 0);
   const outstanding = invoice.totalAmount - invoice.paidAmount;
+  const paymentBounds = dayBoundsInPakistan(req.body.paymentDate);
   if (amountReceived <= 0) throw AppError.badRequest('Amount must be greater than 0');
   if (amountReceived > outstanding) throw AppError.badRequest(`Amount exceeds outstanding balance of Rs. ${outstanding}`);
+  if (!paymentBounds) throw AppError.badRequest('Invalid payment date');
 
   invoice.paidAmount += amountReceived;
   invoice.paymentStatus = invoice.paidAmount >= invoice.totalAmount ? 'Paid' : 'Partial';

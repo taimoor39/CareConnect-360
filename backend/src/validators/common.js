@@ -230,18 +230,11 @@ export const scheduleRules = (prefix = 'schedule', { optional = false } = {}) =>
     .custom((days) => days.every((day) => DAYS_OF_WEEK.includes(day)))
     .withMessage(`Invalid day value — allowed: ${DAYS_OF_WEEK.join(', ')}`);
 
-  const shiftEndChain = timeRule(path('shiftEnd'), { optional, label: 'Shift end' }).custom(
-    (end, { req }) => {
-      const start = prefix ? req.body?.[prefix]?.shiftStart : req.body?.shiftStart;
-      if (!start || !end) return true;
-      if (end <= start) throw new Error('Shift end must be after shift start');
-      return true;
-    }
-  );
+  const shiftEndChain = timeRule(path('shiftEnd'), { optional: true, label: 'Shift end' });
 
   return [
     daysRule,
-    timeRule(path('shiftStart'), { optional, label: 'Shift start' }),
+    timeRule(path('shiftStart'), { optional: true, label: 'Shift start' }),
     shiftEndChain,
     integerRule(path('maxPatientsPerDay'), { min: 1, max: 100, optional: true, label: 'Max patients per day' }),
     integerRule(path('consultationDurationMins'), { min: 10, max: 120, optional: true, label: 'Consultation duration (mins)' }),

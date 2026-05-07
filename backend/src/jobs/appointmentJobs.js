@@ -11,6 +11,7 @@ import { getSettings, sendEngagementEmail } from '../utils/emailService.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js';
 import auditLogger from '../utils/auditLogger.js';
+import { pktNow } from '../utils/timezone.js';
 
 const CLINIC_DEFAULT = 'CareConnect 360';
 
@@ -48,9 +49,9 @@ export const runAppointmentReminders = async () => {
       return;
     }
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowBounds = dayBoundsInPakistan(toPakistanISODate(tomorrow));
+    // ER-1 should evaluate 24 hours ahead in PKT.
+    const reminderTarget = pktNow().add(24, 'hour');
+    const tomorrowBounds = dayBoundsInPakistan(reminderTarget.format('YYYY-MM-DD'));
     if (!tomorrowBounds) return;
 
     const appointments = await Appointment.find({

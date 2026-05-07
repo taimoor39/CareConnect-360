@@ -115,20 +115,14 @@ export default function useDoctorForm(initial = baseInitial, options = { mode: '
       },
       'schedule.shiftStart': () => {
         const text = String(value || '');
-        if (!text) return 'Shift start time required';
+        if (!text) return '';
         if (!timeRegex.test(text)) return 'Format: HH:MM';
-        if (draft.schedule?.shiftEnd && timeRegex.test(draft.schedule?.shiftEnd) && text >= draft.schedule?.shiftEnd) {
-          return 'Start time must be before end time';
-        }
         return '';
       },
       'schedule.shiftEnd': () => {
         const text = String(value || '');
-        if (!text) return 'Shift end time required';
+        if (!text) return '';
         if (!timeRegex.test(text)) return 'Format: HH:MM';
-        if (draft.schedule?.shiftStart && timeRegex.test(draft.schedule?.shiftStart) && text <= draft.schedule?.shiftStart) {
-          return 'End time must be after start time';
-        }
         return '';
       },
       'schedule.maxPatientsPerDay': () => {

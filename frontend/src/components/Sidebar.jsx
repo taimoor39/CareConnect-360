@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { getPortalAccessStats } from '../api/portalAccess.js';
 import { getAuthUser } from '../utils/authUser.js';
 
 const iconClass = 'h-4 w-4';
@@ -69,11 +71,24 @@ function Sidebar() {
   const auth = getAuthUser();
   const adminName = auth.name || 'Admin';
   const adminRole = String(auth.role || 'admin').toUpperCase();
+  const [pendingPortalRequests, setPendingPortalRequests] = useState(0);
+
+  useEffect(() => {
+    const fetchPending = () => {
+      getPortalAccessStats()
+        .then((r) => setPendingPortalRequests(Number(r.data?.data?.pending || 0)))
+        .catch(() => {});
+    };
+
+    fetchPending();
+    const interval = setInterval(fetchPending, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const items = [
     { label: 'Dashboard', path: '/dashboard', icon: DashboardIcon },
     { label: 'Patients', path: '/patients', icon: PatientsIcon },
-    { label: 'Users', path: '/users', icon: UsersIcon },
+    { label: 'Users', path: '/users', icon: UsersIcon, badge: pendingPortalRequests },
     { label: 'Doctors', path: '/doctors', icon: DoctorsIcon },
     { label: 'Appointments', path: '/appointments', icon: AppointmentsIcon },
     { label: 'Billing', path: '/billing', icon: BillingIcon },
@@ -110,6 +125,11 @@ function Sidebar() {
                       {item.icon({ className: 'h-[1rem] w-[1rem]' })}
                     </span>
                     <span>{item.label}</span>
+                    {item.badge > 0 ? (
+                      <span className="ml-auto rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        {item.badge}
+                      </span>
+                    ) : null}
                   </Link>
                 </div>
               ))}

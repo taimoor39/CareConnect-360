@@ -67,7 +67,7 @@ export const recordPaymentValidator = [
   mongoIdParam(INVOICE_ID.field, INVOICE_ID.label),
   floatRule('amountReceived', { min: 0.01, optional: false, label: 'Amount received' }),
   enumRule('paymentMethod', PAYMENT_METHODS, { label: 'Payment method' }),
-  dateRule('paymentDate', { optional: false, noFuture: true, label: 'Payment date' }),
+  dateRule('paymentDate', { optional: false, noPast: true, label: 'Payment date' }),
 ];
 
 export const invoiceIdValidator = [mongoIdParam(INVOICE_ID.field, INVOICE_ID.label)];

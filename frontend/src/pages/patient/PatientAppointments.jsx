@@ -5,6 +5,7 @@ import { getMyAppointments, getMyPrescriptions, getMyReports } from '../../api/p
 import QRCodeModal from '../../components/patient/QRCodeModal.jsx';
 import PatientPaginationBar from '../../components/patient/PatientPaginationBar.jsx';
 import { formatDate, formatTimeSlot } from '../../utils/dateHelpers.js';
+import { formatDateInPakistan, parseLocalDateFromISO } from '../../utils/isoDate.js';
 
 const tabs = [
   { id: 'all', label: 'All' },
@@ -120,7 +121,7 @@ function PatientAppointments() {
                 {a.doctorProfile?.specialization || a.doctorId?.specialization || '—'} · {a.doctorProfile?.qualification || a.doctorId?.qualification || '—'}
               </p>
               <p className="mt-3 text-sm text-slate-300">
-                {new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'Asia/Karachi' }).format(new Date(a.date))}, {formatDate(a.date)}
+                {formatDateInPakistan(parseLocalDateFromISO(a.date) || a.date, 'en-GB', { weekday: 'long' })}, {formatDate(a.date)}
               </p>
               <p className="mt-1 text-sm text-teal-200/90">{formatTimeSlot(a.timeSlot)}</p>
               <p className="mt-3 text-sm text-slate-400">

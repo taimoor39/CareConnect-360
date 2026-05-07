@@ -1,5 +1,8 @@
 import QRCode from 'qrcode';
 import mongoose from 'mongoose';
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone.js';
+import utc from 'dayjs/plugin/utc.js';
 import { v4 as uuidv4 } from 'uuid';
 
 import Appointment from '../models/Appointment.js';
@@ -13,15 +16,17 @@ import { auditFromReq } from '../utils/audit.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { findPatientByUserId } from '../utils/patientLink.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
+import { pktDayBounds } from '../utils/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // ─── Shared helpers ───────────────────────────────────────────────────────
 
 const startEndOfDate = (dateInput) => {
   const bounds = dayBoundsInPakistan(dateInput);
   if (bounds) return { start: bounds.start, end: bounds.end };
-  const start = new Date(dateInput); start.setHours(0, 0, 0, 0);
-  const end = new Date(dateInput); end.setHours(23, 59, 59, 999);
-  return { start, end };
+  return pktDayBounds(dateInput);
 };
 
 const parseHHMM = (value = '') => {
@@ -208,6 +213,17 @@ export const getAppointmentById = asyncHandler(async (req, res) => {
 export const createAppointment = asyncHandler(async (req, res) => {
   const { patientId, doctorId, date, timeSlot, reasonForVisit = '', notes = '', rescheduledFrom = null } = req.body;
   const { start: dayStart, end: dayEnd } = startEndOfDate(date);
+  const slotStartRaw = String(timeSlot || '').split('-')[0]?.trim() || '';
+  const dayTimeFormat = /^(\d{2}:\d{2})\s?(AM|PM)$/i.test(slotStartRaw)
+    ? 'YYYY-MM-DD hh:mm A'
+    : 'YYYY-MM-DD HH:mm';
+  const combinedDateTime = dayjs.tz(`${date} ${slotStartRaw}`, dayTimeFormat, 'Asia/Karachi');
+  if (!combinedDateTime.isValid()) {
+    throw AppError.badRequest('Invalid appointment date/time');
+  }
+  if (combinedDateTime.isBefore(dayjs().tz('Asia/Karachi'))) {
+    throw AppError.badRequest('This time slot has already passed.');
+  }
 
   const [conflict, patientConflict, patient, doctor] = await Promise.all([
     Appointment.findOne({ doctorId, date: { $gte: dayStart, $lte: dayEnd }, timeSlot, status: { $nin: ['Cancelled', 'Missed'] } }).lean(),

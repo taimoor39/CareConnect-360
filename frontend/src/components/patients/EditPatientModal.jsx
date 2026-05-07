@@ -1,10 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import DateDropdown from '../ui/DateDropdown.jsx';
+import PortalAccessToggle from '../portalAccess/PortalAccessToggle.jsx';
 import { normalizeISODateInput, toISOInputValue } from '../../utils/isoDate.js';
 import usePatientForm, { defaultPatientForm } from '../../hooks/usePatientForm.js';
 
 function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErrors = {} }) {
   const form = usePatientForm(defaultPatientForm);
+  const [requestPortalAccess, setRequestPortalAccess] = useState(false);
+  const [portalEmail, setPortalEmail] = useState('');
+  const [portalEmailError, setPortalEmailError] = useState('');
 
   useEffect(() => {
     if (!open || !patient) return;
@@ -21,16 +25,45 @@ function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErro
       city: patient.address?.city || '',
       medicalNotes: patient.medicalNotes || patient.medical?.notes || '',
     });
+    if (patient.portalAccessStatus === 'pending') {
+      setRequestPortalAccess(true);
+      setPortalEmail(patient.portalAccessEmail || patient.email || '');
+    } else {
+      setRequestPortalAccess(false);
+      setPortalEmail(patient.portalAccessEmail || patient.email || '');
+    }
+    setPortalEmailError('');
   }, [open, patient]);
+
+  useEffect(() => {
+    if (requestPortalAccess && form.formData.email && !portalEmail) {
+      setPortalEmail(String(form.formData.email || '').trim());
+    }
+  }, [requestPortalAccess, form.formData.email, portalEmail]);
 
   if (!open || !patient) return null;
 
   const submit = async (event) => {
     event.preventDefault();
     if (!form.validateAll()) return;
+    const canRequestPortalAccess = !patient?.userId && patient?.portalAccessStatus !== 'pending';
+    if (requestPortalAccess && canRequestPortalAccess) {
+      if (!portalEmail) {
+        setPortalEmailError('Email required for portal access');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(portalEmail)) {
+        setPortalEmailError('Enter a valid email address');
+        return;
+      }
+    }
 
     const ok = await onSubmit?.(form.formData, {
       setErrors: form.setErrors,
+      setPortalAccessError: setPortalEmailError,
+      portalAccess: requestPortalAccess && canRequestPortalAccess
+        ? { requested: true, email: portalEmail.trim().toLowerCase() }
+        : { requested: false, email: '' },
     });
 
     if (ok) {
@@ -39,6 +72,7 @@ function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErro
   };
 
   const error = (name) => form.errors[name] || serverErrors[name] || '';
+  const canRequestPortalAccess = !patient?.userId && patient?.portalAccessStatus !== 'pending';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -113,6 +147,25 @@ function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErro
           </div>
 
             <textarea value={form.formData.medicalNotes} onChange={(e) => form.handleChange('medicalNotes', e.target.value)} rows="3" placeholder="Medical Notes" className="col-span-full w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+
+            <div className="col-span-full" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              {!canRequestPortalAccess ? (
+                <div className={`rounded-lg border px-3 py-2 text-xs ${patient?.userId ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-400/30 bg-amber-500/10 text-amber-200'}`}>
+                  {patient?.userId ? 'Patient already has portal access.' : 'Portal access request is already pending admin approval.'}
+                </div>
+              ) : (
+                <>
+                  <PortalAccessToggle
+                    requestPortalAccess={requestPortalAccess}
+                    setRequestPortalAccess={setRequestPortalAccess}
+                    portalEmail={portalEmail}
+                    setPortalEmail={setPortalEmail}
+                    portalEmailError={portalEmailError}
+                    setPortalEmailError={setPortalEmailError}
+                  />
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-5 py-4">

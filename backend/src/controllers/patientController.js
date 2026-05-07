@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import Patient from '../models/Patient.js';
+import PortalAccessRequest from '../models/PortalAccessRequest.js';
 import User from '../models/User.js';
 
 import AppError from '../utils/AppError.js';
@@ -193,6 +194,15 @@ export const createPatient = asyncHandler(async (req, res) => {
     const dup = await User.findOne({ email: String(req.body.email).toLowerCase().trim() }).lean();
     if (dup) throw AppError.conflict('A user already exists with this email');
   }
+  const wantsPortalAccess = Boolean(req.body.portalAccessRequested);
+  const portalAccessEmail = String(req.body.portalAccessEmail || '').trim().toLowerCase();
+  if (wantsPortalAccess && !portalAccessEmail) {
+    throw AppError.badRequest('portalAccessEmail is required when portalAccessRequested is true');
+  }
+  if (portalAccessEmail) {
+    const portalEmailTaken = await User.findOne({ email: portalAccessEmail }).lean();
+    if (portalEmailTaken) throw AppError.conflict('Portal access email is already registered in the system');
+  }
 
   const linkedUserId = await ensureLinkedUser({
     patient: null,
@@ -207,12 +217,29 @@ export const createPatient = asyncHandler(async (req, res) => {
   const payload = buildPayload(req.body, req.user._id);
   const createData = { ...payload, patientId, patientCode: patientId };
   if (linkedUserId) createData.user = linkedUserId;
+  if (wantsPortalAccess && !linkedUserId) {
+    createData.portalAccessRequested = true;
+    createData.portalAccessEmail = portalAccessEmail;
+    createData.portalAccessRequestedAt = new Date();
+    createData.portalAccessRequestedBy = req.user._id;
+    createData.portalAccessStatus = 'pending';
+  }
 
   const patient = await Patient.create(createData);
+
+  if (wantsPortalAccess && !linkedUserId) {
+    await PortalAccessRequest.create({
+      patientId: patient._id,
+      requestedEmail: portalAccessEmail,
+      requestedBy: req.user._id,
+      status: 'pending',
+    });
+  }
 
   await auditFromReq(req, 'PATIENT_CREATED', `Patient:${patient._id}`, {
     patientId: patient.patientId,
     linkedUserId: linkedUserId || null,
+    portalAccessRequested: wantsPortalAccess && !linkedUserId,
   });
 
   res.status(201).json({ success: true, data: { patient: toPublicPatient(patient) } });

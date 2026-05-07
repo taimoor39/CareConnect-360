@@ -256,3 +256,148 @@ export const sendEngagementEmail = async ({
     html,
   });
 };
+
+export const sendPortalWelcomeEmail = async ({
+  patient,
+  email,
+  tempPassword,
+  approvedByName,
+}) => {
+  const settings = await getSettings();
+  const clinicName = settings?.clinic?.name || 'CareConnect 360';
+  const fromEmail = settings?.email?.fromEmail;
+  const fromName = settings?.email?.fromName || clinicName;
+  const portalUrl = `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/login`;
+
+  if (!settings?.email?.smtpHost) return;
+
+  const transporter = await getTransporter();
+  const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="font-family: Arial, sans-serif;
+                   background: #f8fafc; margin:0;
+                   padding:20px;">
+        <div style="max-width:600px; margin:0 auto;
+                    background:#fff; border-radius:12px;
+                    overflow:hidden;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+
+          <div style="background:#0f172a; padding:32px 40px;
+                      text-align:center;">
+            <h1 style="color:#0d9488; margin:0;
+                       font-size:24px;">
+              ${clinicName}
+            </h1>
+            <p style="color:#94a3b8; margin:8px 0 0;
+                      font-size:14px;">
+              Patient Portal
+            </p>
+          </div>
+
+          <div style="padding:40px;">
+            <h2 style="color:#1e293b; margin:0 0 16px;">
+              Welcome to your Patient Portal! 🎉
+            </h2>
+            <p style="color:#475569; line-height:1.6;">
+              Dear <strong>${patient?.name || 'Patient'}</strong>,
+            </p>
+            <p style="color:#475569; line-height:1.6;">
+              Your patient portal account has been created
+              by ${clinicName}. You can now securely access
+              your medical reports, prescriptions,
+              appointments, and invoices online.
+            </p>
+
+            <div style="background:#f8fafc;
+                        border:1px solid #e2e8f0;
+                        border-radius:8px;
+                        padding:20px; margin:24px 0;">
+              <p style="margin:0 0 8px; color:#64748b;
+                         font-size:12px; font-weight:600;
+                         text-transform:uppercase;
+                         letter-spacing:0.05em;">
+                YOUR LOGIN DETAILS
+              </p>
+              <p style="margin:4px 0; color:#1e293b;
+                        font-size:15px;">
+                <strong>Portal URL:</strong>
+                <a href="${portalUrl}"
+                   style="color:#0d9488;">
+                  ${portalUrl}
+                </a>
+              </p>
+              <p style="margin:4px 0; color:#1e293b;
+                        font-size:15px;">
+                <strong>Email:</strong> ${email}
+              </p>
+              <p style="margin:4px 0; color:#1e293b;
+                        font-size:15px;">
+                <strong>Temporary Password:</strong>
+                <code style="background:#e2e8f0;
+                             padding:2px 8px;
+                             border-radius:4px;
+                             font-size:14px;
+                             letter-spacing:1px;">
+                  ${tempPassword}
+                </code>
+              </p>
+            </div>
+
+            <div style="background:#fef3c7;
+                        border:1px solid #fcd34d;
+                        border-radius:8px;
+                        padding:16px; margin:24px 0;">
+              <p style="color:#92400e; margin:0;
+                        font-size:14px;">
+                ⚠️ <strong>Important:</strong>
+                You will be asked to change this
+                temporary password when you first log in.
+                Please choose a strong password.
+              </p>
+            </div>
+
+            <div style="text-align:center; margin:32px 0;">
+              <a href="${portalUrl}"
+                 style="background:#0d9488; color:#fff;
+                        padding:14px 32px;
+                        border-radius:8px;
+                        text-decoration:none;
+                        font-weight:bold;
+                        font-size:16px;
+                        display:inline-block;">
+                Access Your Portal
+              </a>
+            </div>
+
+            <p style="color:#94a3b8; font-size:12px;
+                      margin-top:32px;">
+              Your Patient ID: <strong>${patient?.patientId || '-'}</strong>
+              <br/>
+              If you did not request this account or have
+              any questions, please contact
+              ${clinicName} directly.
+            </p>
+          </div>
+
+          <div style="background:#f8fafc;
+                      padding:20px 40px;
+                      text-align:center;
+                      border-top:1px solid #e2e8f0;">
+            <p style="color:#94a3b8; font-size:12px;
+                      margin:0;">
+              ${clinicName} — Patient Portal
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+  await transporter.sendMail({
+    from: `"${fromName}" <${fromEmail}>`,
+    to: email,
+    subject: `Welcome to ${clinicName} Patient Portal — Your Login Details`,
+    html,
+  });
+};

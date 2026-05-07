@@ -1,22 +1,58 @@
+import { useEffect, useState } from 'react';
 import DateDropdown from '../ui/DateDropdown.jsx';
+import PortalAccessToggle from '../portalAccess/PortalAccessToggle.jsx';
 import { toISOInputValue } from '../../utils/isoDate.js';
 import usePatientForm, { defaultPatientForm } from '../../hooks/usePatientForm.js';
 
 function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} }) {
   const form = usePatientForm(defaultPatientForm);
+  const [requestPortalAccess, setRequestPortalAccess] = useState(false);
+  const [portalEmail, setPortalEmail] = useState('');
+  const [portalEmailError, setPortalEmailError] = useState('');
+
+  useEffect(() => {
+    if (requestPortalAccess && form.formData.email) {
+      setPortalEmail(String(form.formData.email || '').trim());
+    }
+  }, [requestPortalAccess, form.formData.email]);
+
+  useEffect(() => {
+    if (!open) {
+      setRequestPortalAccess(false);
+      setPortalEmail('');
+      setPortalEmailError('');
+    }
+  }, [open]);
 
   if (!open) return null;
 
   const submit = async (event) => {
     event.preventDefault();
     if (!form.validateAll()) return;
+    if (requestPortalAccess) {
+      if (!portalEmail) {
+        setPortalEmailError('Email required for portal access');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(portalEmail)) {
+        setPortalEmailError('Enter a valid email address');
+        return;
+      }
+    }
 
     const ok = await onSubmit?.(form.formData, {
       setErrors: form.setErrors,
+      setPortalAccessError: setPortalEmailError,
+      portalAccess: requestPortalAccess
+        ? { requested: true, email: portalEmail.trim().toLowerCase() }
+        : { requested: false, email: '' },
     });
 
     if (ok) {
       form.reset(defaultPatientForm);
+      setRequestPortalAccess(false);
+      setPortalEmail('');
+      setPortalEmailError('');
       onClose?.();
     }
   };
@@ -92,6 +128,17 @@ function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} })
           </div>
 
             <textarea value={form.formData.medicalNotes} onChange={(e) => form.handleChange('medicalNotes', e.target.value)} rows="3" placeholder="Medical Notes" className="col-span-full w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+
+            <div className="col-span-full">
+              <PortalAccessToggle
+                requestPortalAccess={requestPortalAccess}
+                setRequestPortalAccess={setRequestPortalAccess}
+                portalEmail={portalEmail}
+                setPortalEmail={setPortalEmail}
+                portalEmailError={portalEmailError}
+                setPortalEmailError={setPortalEmailError}
+              />
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-5 py-4">

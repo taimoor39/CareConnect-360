@@ -1,5 +1,8 @@
 import DateDropdown from '../ui/DateDropdown.jsx';
-import { currentYearInPakistan, todayISOInPakistan } from '../../utils/isoDate.js';
+import {
+  currentYearInPakistan,
+  todayISOInPakistan,
+} from '../../utils/isoDate.js';
 
 const money = (value) => `Rs. ${Number(value || 0).toLocaleString()}`;
 
@@ -10,6 +13,9 @@ function RecordPaymentModal({ open, invoice, form, setForm, saving, onClose, onS
   const nextBalance = Math.max(0, outstanding - amount);
   const nextStatus = amount >= outstanding ? 'Paid' : 'Partial';
   const tooMuch = amount > outstanding;
+  const minDate = todayISOInPakistan();
+  const minYear = currentYearInPakistan();
+  const maxYear = currentYearInPakistan() + 3;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -36,14 +42,15 @@ function RecordPaymentModal({ open, invoice, form, setForm, saving, onClose, onS
             <DateDropdown
               value={form.paymentDate}
               onChange={(iso) => setForm((prev) => ({ ...prev, paymentDate: iso }))}
-              maxDate={todayISOInPakistan()}
-              yearFrom={2020}
-              yearTo={currentYearInPakistan()}
+              minDate={minDate}
+              yearFrom={minYear}
+              yearTo={maxYear}
               placeholder={['Day', 'Month', 'Year']}
             />
             <textarea value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} rows={2} placeholder="Notes (optional)" className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
           </div>
           <div className="mt-2 text-[11px] text-slate-400">
+            <p>Payment date is PKT-based and cannot be in the past.</p>
             <p>New balance: {money(nextBalance)}</p>
             <p>Will be marked as: {nextStatus}</p>
             {tooMuch ? <p className="text-rose-300">Max {money(outstanding)}</p> : null}

@@ -71,9 +71,6 @@ function EditDoctorModal({ doctor, isOpen, onClose, onSuccess, setDoctors, setSt
           mapped[item.field] = item.message;
         });
         form.setErrors((prev) => ({ ...prev, ...mapped }));
-        if (mapped['schedule.shiftEnd'] === 'Shift end must be after shift start') {
-          return;
-        }
       }
       toast.error(error.response?.data?.message || 'Server error — please try again');
     } finally {
@@ -182,7 +179,8 @@ function EditDoctorModal({ doctor, isOpen, onClose, onSuccess, setDoctors, setSt
 
           <textarea rows="3" value={form.formData.bio} onChange={(e) => form.handleChange('bio', e.target.value)} placeholder="Bio / Notes" className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs w-full" />
           <div className="rounded-lg border border-slate-700/70 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-400">
-            Minimum schedule requirements: select at least 1 day, set valid `HH:MM` start/end time, and keep end time after start time.
+            Minimum schedule requirements: select at least 1 day, and optionally set valid `HH:MM` start/end times.
+            Matching times or blank times are treated as 24-hour availability.
             Optional limits: max patients/day `1-100`, consultation duration `10-120` minutes.
           </div>
 

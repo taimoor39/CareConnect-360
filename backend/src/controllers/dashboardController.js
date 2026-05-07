@@ -5,6 +5,7 @@ import AuditLog from '../models/AuditLog.js';
 import DoctorProfile from '../models/DoctorProfile.js';
 import Invoice from '../models/Invoice.js';
 import Patient from '../models/Patient.js';
+import PortalAccessRequest from '../models/PortalAccessRequest.js';
 import User from '../models/User.js';
 
 import asyncHandler from '../utils/asyncHandler.js';
@@ -268,12 +269,21 @@ export const getRecentActivity = asyncHandler(async (_req, res) => {
 export const getPendingActions = asyncHandler(async (_req, res) => {
   const { start: today, end: todayEnd } = startEndOfToday();
 
-  const [unpaidInvoices, missedToday, incompleteProfiles] = await Promise.all([
+  const [unpaidInvoices, missedToday, incompleteProfiles, portalAccessRequests] = await Promise.all([
     Invoice.countDocuments({ paymentStatus: { $in: ['Unpaid', 'Partial'] } }),
     Appointment.countDocuments({ status: 'Missed', date: { $gte: today, $lte: todayEnd } }),
     DoctorProfile.countDocuments({ isProfileComplete: false }),
+    PortalAccessRequest.countDocuments({ status: 'pending' }),
   ]);
 
-  res.json({ success: true, data: { unpaidInvoices, missedToday, incompleteProfiles } });
+  res.json({
+    success: true,
+    data: {
+      unpaidInvoices,
+      missedToday,
+      incompleteProfiles,
+      portalAccessRequests,
+    },
+  });
 });
 

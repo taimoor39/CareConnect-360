@@ -40,11 +40,17 @@ const ensureSlotInsideWorkingHours = async (slot, { req }) => {
 
   const [slotStart] = String(slot).split('-');
   const { shiftStart, shiftEnd } = profile.schedule ?? {};
-  if (!shiftStart || !shiftEnd) throw new Error('Doctor schedule is not configured');
+  if (!shiftStart || !shiftEnd || shiftStart === shiftEnd) return true;
 
-  if (slotStart < shiftStart || slotStart >= shiftEnd) {
-    throw new Error('Time slot is outside doctor working hours');
+  // Overnight shift support (e.g., 22:00-06:00).
+  if (shiftStart < shiftEnd) {
+    if (slotStart < shiftStart || slotStart >= shiftEnd) {
+      throw new Error('Time slot is outside doctor working hours');
+    }
+    return true;
   }
+  const inOvernightRange = slotStart >= shiftStart || slotStart < shiftEnd;
+  if (!inOvernightRange) throw new Error('Time slot is outside doctor working hours');
   return true;
 };
 

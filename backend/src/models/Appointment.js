@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { formatPKT } from '../utils/timezone.js';
 
 const appointmentSchema = new mongoose.Schema(
   {
@@ -82,5 +83,14 @@ const appointmentSchema = new mongoose.Schema(
 );
 
 appointmentSchema.index({ doctorId: 1, date: 1, timeSlot: 1 }, { unique: true });
+
+appointmentSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    ret.datePKT = formatPKT(ret.date);
+    ret.createdAtPKT = formatPKT(ret.createdAt);
+    ret.updatedAtPKT = formatPKT(ret.updatedAt);
+    return ret;
+  },
+});
 
 export default mongoose.model('Appointment', appointmentSchema);

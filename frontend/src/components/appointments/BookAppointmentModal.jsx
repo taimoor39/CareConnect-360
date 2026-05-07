@@ -1,32 +1,60 @@
 import { useEffect, useMemo } from 'react';
+import dayjs from 'dayjs';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
 
 import {
   currentYearInPakistan,
   formatDateInPakistan,
   parseLocalDateFromISO,
-  todayISOInPakistan,
 } from '../../utils/isoDate.js';
 import DateDropdown from '../ui/DateDropdown.jsx';
 import PatientSearchDropdown from './PatientSearchDropdown.jsx';
 import TimeSlotPicker from './TimeSlotPicker.jsx';
 
 const dayShortMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const generateSlots = (schedule) => {
-  if (!schedule?.shiftStart || !schedule?.shiftEnd) return [];
+  const duration = Number(schedule?.consultationDurationMins || 30);
+  if (!schedule?.shiftStart || !schedule?.shiftEnd || schedule.shiftStart === schedule.shiftEnd) {
+    const fullDaySlots = [];
+    for (let t = 0; t < 24 * 60; t += duration) {
+      const hh1 = String(Math.floor(t / 60)).padStart(2, '0');
+      const mm1 = String(t % 60).padStart(2, '0');
+      const t2 = (t + duration) % (24 * 60);
+      const hh2 = String(Math.floor(t2 / 60)).padStart(2, '0');
+      const mm2 = String(t2 % 60).padStart(2, '0');
+      fullDaySlots.push({ full: `${hh1}:${mm1}-${hh2}:${mm2}`, start: `${hh1}:${mm1}` });
+    }
+    return fullDaySlots;
+  }
   const [sH, sM] = schedule.shiftStart.split(':').map(Number);
   const [eH, eM] = schedule.shiftEnd.split(':').map(Number);
-  const duration = Number(schedule.consultationDurationMins || 30);
   const start = sH * 60 + sM;
   const end = eH * 60 + eM;
   const slots = [];
-  for (let t = start; t + duration <= end; t += duration) {
+  const pushSlot = (t) => {
     const hh1 = String(Math.floor(t / 60)).padStart(2, '0');
     const mm1 = String(t % 60).padStart(2, '0');
-    const t2 = t + duration;
+    const t2 = (t + duration) % (24 * 60);
     const hh2 = String(Math.floor(t2 / 60)).padStart(2, '0');
     const mm2 = String(t2 % 60).padStart(2, '0');
     slots.push({ full: `${hh1}:${mm1}-${hh2}:${mm2}`, start: `${hh1}:${mm1}` });
+  };
+
+  if (start < end) {
+    for (let t = start; t + duration <= end; t += duration) {
+      pushSlot(t);
+    }
+  } else {
+    for (let t = start; t < 24 * 60; t += duration) {
+      pushSlot(t);
+    }
+    for (let t = 0; t + duration <= end; t += duration) {
+      pushSlot(t);
+    }
   }
   return slots;
 };
@@ -58,6 +86,19 @@ function BookAppointmentModal({
     () => parseLocalDateFromISO(bookForm.selectedDate),
     [bookForm.selectedDate]
   );
+  const filteredSlots = useMemo(() => {
+    if (!bookForm.selectedDate) return allSlots;
+    const nowPKT = dayjs().tz('Asia/Karachi');
+    const selectedPKT = dayjs.tz(bookForm.selectedDate, 'YYYY-MM-DD', 'Asia/Karachi');
+    if (!selectedPKT.isValid()) return allSlots;
+    if (!selectedPKT.isSame(nowPKT, 'day')) return allSlots;
+
+    const threshold = nowPKT.add(30, 'minute');
+    return allSlots.filter((slot) => {
+      const slotDateTime = dayjs.tz(`${bookForm.selectedDate} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Karachi');
+      return slotDateTime.isAfter(threshold) || slotDateTime.isSame(threshold);
+    });
+  }, [allSlots, bookForm.selectedDate]);
   const selectedDayShort = selectedDateObj ? dayShortMap[selectedDateObj.getDay()] : '';
 
   useEffect(() => {
@@ -138,7 +179,7 @@ function BookAppointmentModal({
             <DateDropdown
               value={bookForm.selectedDate}
               onChange={(iso) => setBookForm((prev) => ({ ...prev, selectedDate: iso, selectedSlot: '' }))}
-              minDate={todayISOInPakistan()}
+              minDate={dayjs().tz('Asia/Karachi').startOf('day').format('YYYY-MM-DD')}
               maxDate="2100-12-31"
               yearFrom={currentYearInPakistan()}
               yearTo={currentYearInPakistan() + 3}
@@ -151,7 +192,7 @@ function BookAppointmentModal({
             {errors.date ? <p className="mt-1 text-[11px] text-rose-300">{errors.date}</p> : null}
             <p className="mt-3 text-[11px] font-medium tracking-[0.08em] text-slate-300">TIME SLOTS</p>
             <TimeSlotPicker
-              slots={allSlots}
+              slots={filteredSlots}
               availableStarts={availableSlots}
               loading={slotsLoading}
               selectedSlot={bookForm.selectedSlot}

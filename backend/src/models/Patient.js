@@ -165,6 +165,34 @@ const patientSchema = new mongoose.Schema(
       ref: 'User',
       sparse: true,
     },
+    portalAccessRequested: {
+      type: Boolean,
+      default: false,
+    },
+    portalAccessEmail: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+    },
+    portalAccessRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    portalAccessRequestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    portalAccessStatus: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'rejected'],
+      default: 'none',
+    },
+    portalAccessRejectionReason: {
+      type: String,
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

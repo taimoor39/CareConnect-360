@@ -6,8 +6,11 @@ import uvicorn
 import time
 import io
 import re
+from datetime import datetime
+import pytz
 
 app = FastAPI(title="CareConnect 360 AI Service")
+PKT_TZ = pytz.timezone("Asia/Karachi")
 
 app.add_middleware(
   CORSMiddleware,
@@ -135,6 +138,7 @@ class SummarizeResponse(BaseModel):
   summary:          str
   simplified:       bool
   generation_ms:    int
+  generated_at_pkt: str
 
 # ── Endpoints ────────────────────────────────────
 
@@ -185,13 +189,15 @@ async def summarize_report(request: SummarizeRequest):
       raw_summary = result[0]['summary_text']
     simplified_summary = simplify_medical_terms(raw_summary)
     generation_ms     = int((time.time() - start) * 1000)
+    generated_at_pkt  = datetime.now(PKT_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
     return SummarizeResponse(
       success=True,
       original_length=len(request.text),
       summary=simplified_summary,
       simplified=True,
-      generation_ms=generation_ms
+      generation_ms=generation_ms,
+      generated_at_pkt=generated_at_pkt
     )
 
   except Exception as e:

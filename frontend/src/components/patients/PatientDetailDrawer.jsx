@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import PortalStatusBadge from '../portalAccess/PortalStatusBadge.jsx';
 import { formatDate } from '../../utils/dateHelpers.js';
 
 const statusBadgeClass = {
@@ -13,7 +15,19 @@ const getInitials = (patient) => {
   return `${first}${last}`.toUpperCase() || 'P';
 };
 
-function PatientDetailDrawer({ patient, open, onClose, onEdit, onArchive, onCreateLogin, showArchive = true }) {
+function PatientDetailDrawer({
+  patient,
+  open,
+  onClose,
+  onEdit,
+  onArchive,
+  onCreateLogin,
+  onRequestPortalAccess,
+  requestingPortalAccess = false,
+  showArchive = true,
+}) {
+  const [showPortalRequestForm, setShowPortalRequestForm] = useState(false);
+  const [portalEmail, setPortalEmail] = useState('');
   if (!open || !patient) return null;
 
   return (
@@ -54,19 +68,68 @@ function PatientDetailDrawer({ patient, open, onClose, onEdit, onArchive, onCrea
             <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Account Details</p>
             <div className="mt-2 text-sm text-slate-200">
               <span className="text-slate-400">Portal Access:</span>{' '}
-              {patient.userId ? (
-                <>
-                  <span className="text-emerald-400">● Enabled</span>
-                  <div className="mt-1"><span className="text-slate-400">Email:</span> {patient.email || patient.contact?.email || '-'}</div>
-                </>
+              {patient.userId || patient.portalAccessStatus === 'pending' ? (
+                <PortalStatusBadge patient={patient} />
               ) : (
                 <>
-                  <span className="text-slate-500">○ No Login Account</span>
-                  <div className="mt-2">
-                    <button type="button" onClick={() => typeof onCreateLogin === 'function' && onCreateLogin(patient)} className="rounded-md border border-teal-300/25 bg-teal-400/10 px-3 py-1.5 text-xs text-teal-100 transition hover:bg-teal-400/20">
-                      Create Login Account →
-                    </button>
-                  </div>
+                  <PortalStatusBadge patient={patient} />
+                  {typeof onCreateLogin === 'function' ? (
+                    <div className="mt-2">
+                      <button type="button" onClick={() => onCreateLogin(patient)} className="rounded-md border border-teal-300/25 bg-teal-400/10 px-3 py-1.5 text-xs text-teal-100 transition hover:bg-teal-400/20">
+                        Create Login Account →
+                      </button>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPortalRequestForm((prev) => !prev);
+                      setPortalEmail(patient.portalAccessEmail || patient.email || patient.contact?.email || '');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 14px',
+                      background: 'rgba(13,148,136,0.1)',
+                      border: '1px solid rgba(13,148,136,0.2)',
+                      borderRadius: 8,
+                      color: '#0d9488',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      width: '100%',
+                      justifyContent: 'center',
+                      marginTop: 8,
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <line x1="19" y1="8" x2="19" y2="14" />
+                      <line x1="22" y1="11" x2="16" y2="11" />
+                    </svg>
+                    Request Portal Access
+                  </button>
+                  {showPortalRequestForm ? (
+                    <div className="mt-2 space-y-2 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+                      <input
+                        type="email"
+                        value={portalEmail}
+                        onChange={(e) => setPortalEmail(e.target.value)}
+                        placeholder="patient@email.com"
+                        className="w-full rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={requestingPortalAccess}
+                        onClick={() => typeof onRequestPortalAccess === 'function' && onRequestPortalAccess(patient, portalEmail, () => setShowPortalRequestForm(false))}
+                        className="w-full rounded-md bg-teal-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:opacity-50"
+                      >
+                        {requestingPortalAccess ? 'Submitting...' : 'Submit Portal Request'}
+                      </button>
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>

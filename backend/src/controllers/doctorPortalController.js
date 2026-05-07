@@ -312,6 +312,7 @@ export const summarizeDoctorReport = asyncHandler(async (req, res) => {
       status: 'Pending Approval',
       aiModelUsed: 'facebook/bart-large-cnn',
       generationTimeMs: aiData.generation_ms || 0,
+      generatedAtPKT: aiData.generated_at_pkt || '',
       approvedBy: null,
       approvedAt: null,
       editedByDoctor: false,

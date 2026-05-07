@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import AddUserModal from '../components/AddUserModal.jsx';
@@ -7,6 +7,17 @@ import EditUserModal from '../components/EditUserModal.jsx';
 import UserStatCards from '../components/UserStatCards.jsx';
 import UserTable from '../components/UserTable.jsx';
 import { createUser, fetchUsers, sendUserResetEmail, setUserTempPassword, toggleUserStatus, updateUser } from '../api/users.js';
+import {
+  approvePortalAccess,
+  getPortalAccessRequests,
+  rejectPortalAccess,
+  reopenPortalAccess,
+  updatePortalRequestEmail,
+} from '../api/portalAccess.js';
+import ApproveRequestModal from '../components/portalAccess/ApproveRequestModal.jsx';
+import EditEmailModal from '../components/portalAccess/EditEmailModal.jsx';
+import PortalRequestsTable from '../components/portalAccess/PortalRequestsTable.jsx';
+import RejectRequestModal from '../components/portalAccess/RejectRequestModal.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 
 const initialForm = {
@@ -83,6 +94,18 @@ function UserManagement() {
   const [searchName, setSearchName] = useState('');
   const [searchError, setSearchError] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
+  const [activeTab, setActiveTab] = useState(location.search.includes('tab=portal-requests') ? 'portal-requests' : 'all-users');
+  const [portalFilter, setPortalFilter] = useState('pending');
+  const [portalData, setPortalData] = useState({ requests: [], counts: { pending: 0, approved: 0, rejected: 0, total: 0 } });
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalActionLoading, setPortalActionLoading] = useState(false);
+  const [approveTarget, setApproveTarget] = useState(null);
+  const [approveSuccess, setApproveSuccess] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [editEmailTarget, setEditEmailTarget] = useState(null);
+  const [editEmailValue, setEditEmailValue] = useState('');
+  const [editEmailError, setEditEmailError] = useState('');
 
   const refs = {
     firstName: useRef(null),
@@ -134,6 +157,28 @@ function UserManagement() {
     load();
   }, []);
 
+  const loadPortalRequests = async (status = portalFilter) => {
+    try {
+      setPortalLoading(true);
+      const response = await getPortalAccessRequests({ status, page: 1, limit: 50 });
+      const data = response.data?.data || {};
+      setPortalData({
+        requests: data.requests || [],
+        counts: data.counts || { pending: 0, approved: 0, rejected: 0, total: 0 },
+      });
+    } catch {
+      toast.error('Failed to load portal access requests');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'portal-requests') {
+      loadPortalRequests(portalFilter);
+    }
+  }, [activeTab, portalFilter]);
+
   const validateSearch = (value) => {
     const trimmed = String(value || '').trim();
     if (!trimmed) return '';
@@ -153,6 +198,19 @@ function UserManagement() {
   if (!token) {
     return <Navigate to="/login" replace />;
   }
+
+  const formatDate = (value) =>
+    value
+      ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '-';
+  const relativeTime = (value) => {
+    if (!value) return '';
+    const diff = Date.now() - new Date(value).getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days <= 0) return 'today';
+    if (days === 1) return '1 day ago';
+    return `${days} days ago`;
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -316,13 +374,147 @@ function UserManagement() {
     toast.success('Temporary password set. User must change it on next login.');
   };
 
+  const handlePortalApprove = async (requestId) => {
+    try {
+      setPortalActionLoading(true);
+      const response = await approvePortalAccess(requestId);
+      const successEmail = response.data?.data?.email || approveTarget?.requestedEmail || '';
+      const successPatientName = approveTarget?.patientId?.name || 'patient';
+      toast.success(`Portal account created for ${successPatientName}. Welcome email sent to ${successEmail}.`);
+      setApproveSuccess({
+        message: response.data?.message || 'Portal account created',
+        email: successEmail,
+      });
+      await loadPortalRequests(portalFilter);
+    } catch (error) {
+      if (error.response?.status === 409) {
+        toast.error('Email is now taken — ask receptionist to update it');
+      } else {
+        toast.error('Failed to create account');
+      }
+    } finally {
+      setPortalActionLoading(false);
+    }
+  };
+
+  const handlePortalReject = async () => {
+    if (!rejectTarget) return;
+    if (rejectReason.length > 500) return;
+    try {
+      setPortalActionLoading(true);
+      await rejectPortalAccess(rejectTarget._id, { reason: rejectReason.trim() || undefined });
+      toast.warning('Request rejected');
+      setRejectTarget(null);
+      setRejectReason('');
+      await loadPortalRequests(portalFilter);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not reject request');
+    } finally {
+      setPortalActionLoading(false);
+    }
+  };
+
+  const handlePortalEmailUpdate = async () => {
+    if (!editEmailTarget) return;
+    if (!editEmailValue) {
+      setEditEmailError('Email required');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmailValue)) {
+      setEditEmailError('Invalid email format');
+      return;
+    }
+    try {
+      setPortalActionLoading(true);
+      await updatePortalRequestEmail(editEmailTarget._id, { newEmail: editEmailValue.trim().toLowerCase() });
+      toast.success('Email updated successfully');
+      setEditEmailTarget(null);
+      setEditEmailValue('');
+      setEditEmailError('');
+      await loadPortalRequests(portalFilter);
+    } catch (error) {
+      if (error.response?.status === 409) {
+        setEditEmailError('This email is already registered');
+      } else {
+        toast.error(error.response?.data?.message || 'Could not update email');
+      }
+    } finally {
+      setPortalActionLoading(false);
+    }
+  };
+
   return (
     <>
       <DashboardLayout title="User Management">
         <UserStatCards stats={stats} />
 
         <section className="space-y-4">
-          <article className="glass-panel flex flex-col gap-3 rounded-2xl p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setActiveTab('all-users'); navigate('/users'); }} className={`rounded-lg px-3 py-1.5 text-xs ${activeTab === 'all-users' ? 'bg-teal-500 text-slate-900' : 'border border-slate-700 text-slate-200'}`}>
+              All Users ({stats.totalUsers || users.length || 0})
+            </button>
+            <button type="button" onClick={() => { setActiveTab('portal-requests'); navigate('/users?tab=portal-requests'); }} className={`rounded-lg px-3 py-1.5 text-xs ${activeTab === 'portal-requests' ? 'bg-teal-500 text-slate-900' : 'border border-slate-700 text-slate-200'}`}>
+              Portal Requests ({portalData.counts.total || 0}) {portalData.counts.pending > 0 ? '🔴' : ''}
+            </button>
+          </div>
+
+          {activeTab === 'portal-requests' ? (
+            <article className="glass-panel space-y-4 rounded-2xl p-4">
+              <div>
+                <h3 className="text-base font-semibold text-white">Patient Portal Access Requests</h3>
+                <p className="text-xs text-slate-400">Review and approve patient portal accounts</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ['all', 'All', portalData.counts.total || 0],
+                  ['pending', 'Pending', portalData.counts.pending || 0],
+                  ['approved', 'Approved', portalData.counts.approved || 0],
+                  ['rejected', 'Rejected', portalData.counts.rejected || 0],
+                ].map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPortalFilter(value)}
+                    className={`rounded-lg px-3 py-1.5 text-xs ${portalFilter === value ? 'bg-teal-500 text-slate-900' : 'border border-slate-700 text-slate-200'}`}
+                  >
+                    {label} ({count})
+                  </button>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto">
+                <PortalRequestsTable
+                  loading={portalLoading}
+                  requests={portalData.requests}
+                  formatDate={formatDate}
+                  relativeTime={relativeTime}
+                  onApprove={(request) => {
+                    setApproveTarget(request);
+                    setApproveSuccess(null);
+                  }}
+                  onReject={(request) => {
+                    setRejectTarget(request);
+                    setRejectReason('');
+                  }}
+                  onEditEmail={(request) => {
+                    setEditEmailTarget(request);
+                    setEditEmailValue(request.requestedEmail || '');
+                    setEditEmailError('');
+                  }}
+                  onReopen={async (request) => {
+                    await reopenPortalAccess(request._id);
+                    toast.success('Portal access request submitted');
+                    await loadPortalRequests(portalFilter);
+                  }}
+                />
+              </div>
+            </article>
+          ) : null}
+
+          {activeTab === 'all-users' ? (
+            <>
+              <article className="glass-panel flex flex-col gap-3 rounded-2xl p-4 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-sm text-slate-300">Manage system users, roles and access</p>
             <div className="w-full lg:w-auto">
               <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-start justify-end gap-2">
@@ -366,15 +558,17 @@ function UserManagement() {
                 </button>
               </form>
             </div>
-          </article>
+              </article>
 
-          <UserTable
-            users={users}
-            loading={loading}
-            onRefresh={load}
-            onEdit={handleEdit}
-            onToggleStatus={handleToggleStatus}
-          />
+              <UserTable
+                users={users}
+                loading={loading}
+                onRefresh={load}
+                onEdit={handleEdit}
+                onToggleStatus={handleToggleStatus}
+              />
+            </>
+          ) : null}
         </section>
       </DashboardLayout>
 
@@ -400,6 +594,35 @@ function UserManagement() {
         onSubmit={handleEditSubmit}
         onSendResetEmail={handleSendResetEmail}
         onSetTempPassword={handleSetTempPassword}
+      />
+
+      <ApproveRequestModal
+        target={approveTarget}
+        loading={portalActionLoading}
+        success={approveSuccess}
+        onApprove={() => handlePortalApprove(approveTarget._id)}
+        onClose={() => {
+          setApproveTarget(null);
+          setApproveSuccess(null);
+        }}
+      />
+      <RejectRequestModal
+        target={rejectTarget}
+        reason={rejectReason}
+        setReason={setRejectReason}
+        loading={portalActionLoading}
+        onReject={handlePortalReject}
+        onClose={() => setRejectTarget(null)}
+      />
+      <EditEmailModal
+        target={editEmailTarget}
+        email={editEmailValue}
+        setEmail={setEditEmailValue}
+        error={editEmailError}
+        setError={setEditEmailError}
+        loading={portalActionLoading}
+        onSave={handlePortalEmailUpdate}
+        onClose={() => setEditEmailTarget(null)}
       />
 
     </>

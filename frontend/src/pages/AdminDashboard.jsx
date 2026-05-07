@@ -116,7 +116,7 @@ function AdminDashboard() {
   const [recentPatients, setRecentPatients] = useState({ patients: [], thisWeekCount: 0, thisMonthCount: 0 });
   const [systemHealth, setSystemHealth] = useState({ checks: [], auditToday: 0, totalUsers: 0, collectionsCount: 0, storageNote: '' });
   const [recentActivity, setRecentActivity] = useState([]);
-  const [pendingActions, setPendingActions] = useState({ unpaidInvoices: 0, missedToday: 0, incompleteProfiles: 0 });
+  const [pendingActions, setPendingActions] = useState({ unpaidInvoices: 0, missedToday: 0, incompleteProfiles: 0, portalAccessRequests: 0 });
 
   const fetchDashboard = useCallback(async (chartPeriod = period, showInitialLoader = false) => {
     try {
@@ -151,7 +151,7 @@ function AdminDashboard() {
       setRecentPatients(patientResponse.data?.data || { patients: [], thisWeekCount: 0, thisMonthCount: 0 });
       setSystemHealth(healthResponse.data?.data || { checks: [] });
       setRecentActivity(activityResponse.data?.data || []);
-      setPendingActions(pendingResponse.data?.data || { unpaidInvoices: 0, missedToday: 0, incompleteProfiles: 0 });
+      setPendingActions(pendingResponse.data?.data || { unpaidInvoices: 0, missedToday: 0, incompleteProfiles: 0, portalAccessRequests: 0 });
       setLastFetchedAt(new Date());
     } catch (error) {
       toast.error('Failed to load dashboard');
@@ -499,7 +499,12 @@ function AdminDashboard() {
                 <span>Incomplete doctor profiles: {pendingActions.incompleteProfiles}</span><span>Complete →</span>
               </button>
             ) : null}
-            {pendingActions.unpaidInvoices === 0 && pendingActions.missedToday === 0 && pendingActions.incompleteProfiles === 0 ? (
+            {pendingActions.portalAccessRequests > 0 ? (
+              <button type="button" onClick={() => navigate('/users?tab=portal-requests')} className="flex w-full items-center justify-between rounded bg-slate-900/70 px-2 py-1 text-amber-200">
+                <span>Portal requests pending: {pendingActions.portalAccessRequests}</span><span>Review →</span>
+              </button>
+            ) : null}
+            {pendingActions.unpaidInvoices === 0 && pendingActions.missedToday === 0 && pendingActions.incompleteProfiles === 0 && pendingActions.portalAccessRequests === 0 ? (
               <div className="rounded bg-emerald-500/15 px-2 py-1 text-emerald-200">All caught up!</div>
             ) : null}
           </div>

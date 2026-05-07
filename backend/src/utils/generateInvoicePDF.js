@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { formatPKT, pktNow } from './timezone.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────
 const STATUS_COLORS = Object.freeze({
@@ -31,7 +32,7 @@ const COLUMNS = Object.freeze({
 // ─── Tiny helpers ─────────────────────────────────────────────────────────
 const num = (value) => Number(value ?? 0);
 const money = (value) => `Rs. ${num(value).toLocaleString()}`;
-const toDateString = (value) => (value ? new Date(value).toLocaleDateString() : '');
+const toDateString = (value) => (value ? (formatPKT(value, 'DD MMM YYYY') || '') : '');
 const drawRule = (doc, y) => doc.moveTo(PAGE.ruleStart, y).lineTo(PAGE.ruleEnd, y).stroke();
 
 // ─── Section renderers ────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ const drawHeader = (doc, invoice) => {
   doc.fontSize(10)
     .font('Helvetica')
     .text('Healthcare CRM System', 50, 75)
-    .text(`Generated: ${new Date().toLocaleDateString()}`, 50, 90);
+    .text(`Generated: ${formatPKT(pktNow().toDate())}`, 50, 90);
 
   doc.fontSize(16).font('Helvetica-Bold').text('INVOICE', 400, 50, { align: 'right' });
   doc.fontSize(12).font('Helvetica').text(invoice.invoiceNumber, 400, 72, { align: 'right' });

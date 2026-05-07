@@ -10,6 +10,7 @@ const reportSummarySchema = new mongoose.Schema(
     status: { type: String, enum: ['Not Generated', 'Pending Approval', 'Approved', 'Rejected'], default: 'Pending Approval', index: true },
     aiModelUsed: { type: String, default: 'facebook/bart-large-cnn' },
     generationTimeMs: { type: Number, default: 0 },
+    generatedAtPKT: { type: String, default: '' },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     approvedAt: { type: Date, default: null },
     editedByDoctor: { type: Boolean, default: false },

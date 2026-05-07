@@ -122,8 +122,7 @@ const buildProfilePayload = (body) => ({
 
 const isProfileComplete = (p) => Boolean(
   p.specialization && p.qualification &&
-  p.schedule?.days?.length > 0 &&
-  p.schedule?.shiftStart && p.schedule?.shiftEnd,
+  p.schedule?.days?.length > 0,
 );
 
 const ensureProfileExists = async (userId, user) => {
@@ -332,12 +331,6 @@ export const updateDoctorSchedule = asyncHandler(async (req, res) => {
   const user = await findDoctorUser(req.params.id);
   const { days, shiftStart, shiftEnd, maxPatientsPerDay, consultationDurationMins } = req.body;
 
-  if (shiftEnd <= shiftStart) {
-    throw AppError.unprocessable('Shift end must be after shift start', [
-      { field: 'shiftEnd', message: 'Shift end must be after shift start' },
-    ]);
-  }
-
   const profile = await DoctorProfile.findOne({ userId: user._id });
   if (!profile) throw AppError.notFound('Doctor profile not found');
 
@@ -412,18 +405,42 @@ export const getDoctorAvailability = asyncHandler(async (req, res) => {
     return res.json({ success: true, data: { availableSlots: [] } });
   }
 
-  const [startHour, startMinute] = String(profile.schedule.shiftStart).split(':').map(Number);
-  const [endHour, endMinute] = String(profile.schedule.shiftEnd).split(':').map(Number);
+  const startTime = String(profile.schedule.shiftStart || '');
+  const endTime = String(profile.schedule.shiftEnd || '');
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
   const duration = Number(profile.schedule.consultationDurationMins || 30);
 
-  const shiftStart = new Date(requestedDate);
-  shiftStart.setHours(startHour, startMinute, 0, 0);
-  const shiftEnd = new Date(requestedDate);
-  shiftEnd.setHours(endHour, endMinute, 0, 0);
-
   const slots = [];
-  for (let t = new Date(shiftStart); t < shiftEnd; t = new Date(t.getTime() + duration * 60_000)) {
-    slots.push(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
+  const is24x7 = !startTime || !endTime || startTime === endTime;
+
+  if (is24x7) {
+    for (let minutes = 0; minutes < 24 * 60; minutes += duration) {
+      const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+      const mm = String(minutes % 60).padStart(2, '0');
+      slots.push(`${hh}:${mm}`);
+    }
+  } else if (endTime > startTime) {
+    const shiftStart = startHour * 60 + startMinute;
+    const shiftEnd = endHour * 60 + endMinute;
+    for (let minutes = shiftStart; minutes < shiftEnd; minutes += duration) {
+      const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+      const mm = String(minutes % 60).padStart(2, '0');
+      slots.push(`${hh}:${mm}`);
+    }
+  } else {
+    const shiftStart = startHour * 60 + startMinute;
+    const shiftEnd = endHour * 60 + endMinute;
+    for (let minutes = shiftStart; minutes < 24 * 60; minutes += duration) {
+      const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+      const mm = String(minutes % 60).padStart(2, '0');
+      slots.push(`${hh}:${mm}`);
+    }
+    for (let minutes = 0; minutes < shiftEnd; minutes += duration) {
+      const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+      const mm = String(minutes % 60).padStart(2, '0');
+      slots.push(`${hh}:${mm}`);
+    }
   }
 
   const bounds = dayBoundsInPakistan(requestedIso);

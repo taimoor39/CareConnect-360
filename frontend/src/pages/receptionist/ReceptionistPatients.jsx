@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { createPatient, getPatientById, getPatients, updatePatient } from '../../api/patients.js';
+import { requestPortalAccess } from '../../api/portalAccess.js';
 import AddPatientModal from '../../components/patients/AddPatientModal.jsx';
 import EditPatientModal from '../../components/patients/EditPatientModal.jsx';
 import PatientDetailDrawer from '../../components/patients/PatientDetailDrawer.jsx';
@@ -35,6 +36,7 @@ function ReceptionistPatients() {
   const [searchInput, setSearchInput] = useState('');
   const [createSaving, setCreateSaving] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [requestingPortalAccess, setRequestingPortalAccess] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setTableLoading(true);
@@ -80,8 +82,27 @@ function ReceptionistPatients() {
   const handleAddSubmit = async (formData, helpers) => {
     try {
       setCreateSaving(true);
-      await createPatient(normalizePatientPayload(formData));
-      toast.success('Patient registered successfully');
+      const created = await createPatient(normalizePatientPayload(formData));
+      const createdPatientId = created.data?.data?.patient?._id || created.data?.data?._id || null;
+      const portalRequested = Boolean(helpers?.portalAccess?.requested);
+      if (portalRequested && createdPatientId) {
+        try {
+          await requestPortalAccess({
+            patientId: createdPatientId,
+            requestedEmail: helpers.portalAccess.email,
+          });
+          toast.success('Patient registered. Portal access request submitted for admin approval.');
+        } catch (portalError) {
+          if (portalError.response?.status === 409) {
+            helpers?.setPortalAccessError?.('This email is already registered');
+            return false;
+          }
+          toast.success('Patient registered successfully');
+          toast.warning('Portal access request could not be submitted. Try again from patient details.');
+        }
+      } else {
+        toast.success('Patient registered successfully');
+      }
       await fetchAll();
       return true;
     } catch (error) {
@@ -96,12 +117,33 @@ function ReceptionistPatients() {
     }
   };
 
-  const handleEditSubmit = async (formData) => {
+  const handleEditSubmit = async (formData, helpers) => {
     if (!selectedPatient?._id) return false;
     try {
       setEditSaving(true);
       await updatePatient(selectedPatient._id, normalizePatientPayload(formData));
-      toast.success('Patient updated successfully');
+      if (helpers?.portalAccess?.requested) {
+        try {
+          await requestPortalAccess({
+            patientId: selectedPatient._id,
+            requestedEmail: helpers.portalAccess.email,
+          });
+          toast.success('Portal access request submitted');
+        } catch (portalError) {
+          if (portalError.response?.status === 409) {
+            helpers?.setPortalAccessError?.(
+              /already has a portal/i.test(portalError.response?.data?.message || '')
+                ? 'Patient already has portal access'
+                : 'This email is already registered'
+            );
+            return false;
+          }
+          toast.success('Patient updated successfully');
+          toast.warning('Portal access request could not be submitted.');
+        }
+      } else {
+        toast.success('Patient updated successfully');
+      }
       setModalState((prev) => ({ ...prev, edit: false }));
       await fetchAll();
       return true;
@@ -110,6 +152,26 @@ function ReceptionistPatients() {
       return false;
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handlePortalAccessFromDrawer = async (patient, email, done) => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      toast.warning('Please enter a valid portal email');
+      return;
+    }
+    try {
+      setRequestingPortalAccess(true);
+      await requestPortalAccess({ patientId: patient._id, requestedEmail: String(email).trim().toLowerCase() });
+      toast.success('Portal access request submitted');
+      const fresh = await getPatientById(patient._id);
+      setSelectedPatient(fresh.data?.data?.patient || patient);
+      done?.();
+      await fetchAll();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not submit portal access request');
+    } finally {
+      setRequestingPortalAccess(false);
     }
   };
 
@@ -152,6 +214,8 @@ function ReceptionistPatients() {
         onClose={() => setModalState((prev) => ({ ...prev, view: false }))}
         onEdit={() => setModalState((prev) => ({ ...prev, view: false, edit: true }))}
         onArchive={() => {}}
+        onRequestPortalAccess={handlePortalAccessFromDrawer}
+        requestingPortalAccess={requestingPortalAccess}
         showArchive={false}
       />
     </>

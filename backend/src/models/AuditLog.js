@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { formatPKT } from '../utils/timezone.js';
 
 const auditLogSchema = new mongoose.Schema(
   {
@@ -50,5 +51,13 @@ auditLogSchema.index({ createdAt: -1 });
 auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 31536000 });
 auditLogSchema.index({ userId: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
+
+auditLogSchema.set('toJSON', {
+  transform: (_doc, ret) => {
+    ret.createdAtPKT = formatPKT(ret.createdAt);
+    ret.updatedAtPKT = formatPKT(ret.updatedAt);
+    return ret;
+  },
+});
 
 export default mongoose.model('AuditLog', auditLogSchema);

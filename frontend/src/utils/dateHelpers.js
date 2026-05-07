@@ -1,10 +1,18 @@
 import { parseLocalDateFromISO, toISOInputValue, todayISOInPakistan } from './isoDate.js';
 export const PKT_OFFSET = 5 * 60;
 
+const parseDateForDisplay = (value) => {
+  const strict = parseLocalDateFromISO(value);
+  if (strict) return strict;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+};
+
 export const formatDate = (dateStr) => {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '—';
+  const d = parseDateForDisplay(dateStr);
+  if (!d) return '—';
   return d.toLocaleDateString('en-PK', {
     day: '2-digit',
     month: 'short',
@@ -15,8 +23,8 @@ export const formatDate = (dateStr) => {
 
 export const formatDateTime = (dateStr) => {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '—';
+  const d = parseDateForDisplay(dateStr);
+  if (!d) return '—';
   return d.toLocaleString('en-PK', {
     day: '2-digit',
     month: 'short',

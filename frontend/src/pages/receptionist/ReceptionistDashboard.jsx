@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import { createAppointment, getDoctorAvailability, searchPatients, updateAppointmentStatus } from '../../api/appointments.js';
 import { getDoctors } from '../../api/doctors.js';
 import { createPatient } from '../../api/patients.js';
+import { requestPortalAccess } from '../../api/portalAccess.js';
 import { getReceptionistStats, getTodayQueue } from '../../api/receptionist.js';
 import BookAppointmentModal from '../../components/appointments/BookAppointmentModal.jsx';
 import CancelDialog from '../../components/appointments/CancelDialog.jsx';
@@ -122,8 +123,27 @@ function ReceptionistDashboard() {
   const submitPatient = async (formData, helpers) => {
     try {
       setCreateSaving(true);
-      await createPatient(normalizePatientPayload(formData));
-      toast.success('Patient registered successfully');
+      const created = await createPatient(normalizePatientPayload(formData));
+      const createdPatientId = created.data?.data?.patient?._id || created.data?.data?._id || null;
+      const portalRequested = Boolean(helpers?.portalAccess?.requested);
+      if (portalRequested && createdPatientId) {
+        try {
+          await requestPortalAccess({
+            patientId: createdPatientId,
+            requestedEmail: helpers.portalAccess.email,
+          });
+          toast.success('Patient registered. Portal access request submitted for admin approval.');
+        } catch (portalError) {
+          if (portalError.response?.status === 409) {
+            helpers?.setPortalAccessError?.('This email is already registered');
+            return false;
+          }
+          toast.success('Patient registered successfully');
+          toast.warning('Portal access request could not be submitted. Try again from patient details.');
+        }
+      } else {
+        toast.success('Patient registered successfully');
+      }
       await fetchAll();
       return true;
     } catch (error) {
