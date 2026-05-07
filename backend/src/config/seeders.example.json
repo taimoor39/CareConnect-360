@@ -1,0 +1,9 @@
+{
+  "admin": {
+    "email": "admin@example.com",
+    "password": "Admin@123456",
+    "name": "System Admin",
+    "phone": "03000000000"
+  },
+  "seeders": ["admin", "menus"]
+}

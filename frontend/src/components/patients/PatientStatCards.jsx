@@ -1,0 +1,37 @@
+function PatientStatCards({ stats = {}, loading = false }) {
+  if (loading) {
+    return (
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <article key={i} className="glass-panel rounded-2xl p-5">
+            <div className="h-3 w-24 animate-pulse rounded bg-slate-800" />
+            <div className="mt-3 h-7 w-20 animate-pulse rounded bg-slate-800" />
+            <div className="mt-2 h-3 w-32 animate-pulse rounded bg-slate-800" />
+          </article>
+        ))}
+      </section>
+    );
+  }
+
+  return (
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <article className="glass-panel rounded-2xl p-5">
+        <p className="text-[0.6875rem] uppercase tracking-[0.14em] text-slate-400">TOTAL PATIENTS</p>
+        <p className="mt-2 text-2xl font-semibold text-white">{stats.totalPatients ?? 0}</p>
+        <p className="mt-1 text-xs text-slate-400">across all records</p>
+      </article>
+      <article className="glass-panel rounded-2xl p-5">
+        <p className="text-[0.6875rem] uppercase tracking-[0.14em] text-slate-400">ACTIVE PATIENTS</p>
+        <p className="mt-2 text-2xl font-semibold text-teal-300">{stats.activePatients ?? 0}</p>
+        <p className="mt-1 text-xs text-slate-400">across all records</p>
+      </article>
+      <article className="glass-panel rounded-2xl p-5">
+        <p className="text-[0.6875rem] uppercase tracking-[0.14em] text-slate-400">INACTIVE PATIENTS</p>
+        <p className="mt-2 text-2xl font-semibold text-amber-300">{stats.inactivePatients ?? 0}</p>
+        <p className="mt-1 text-xs text-slate-400">across all records</p>
+      </article>
+    </section>
+  );
+}
+
+export default PatientStatCards;
