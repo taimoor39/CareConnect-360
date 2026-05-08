@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getPortalAccessStats } from '../api/portalAccess.js';
 import { getAuthUser } from '../utils/authUser.js';
+import logo from '../assets/careconnect-logo.png';
 
 const iconClass = 'h-4 w-4';
 
@@ -115,11 +116,14 @@ function Sidebar() {
 
   return (
     <>
-      <aside className={`sticky top-0 hidden h-screen flex-col border-r border-slate-800/80 bg-slate-900/80 p-5 backdrop-blur-xl transition-all duration-200 lg:flex ${collapsed ? 'w-[5.5rem]' : 'w-[17rem]'}`}>
-        <div className="rounded-2xl border border-teal-300/20 bg-gradient-to-br from-teal-500/20 to-sky-500/10 p-3">
+      <aside className={`sticky top-0 hidden h-screen flex-col border-r border-slate-800/80 bg-gradient-to-b from-slate-950 via-[#04142d] to-slate-950 p-5 shadow-[inset_-1px_0_0_rgba(148,163,184,0.14)] backdrop-blur-xl transition-all duration-200 lg:flex ${collapsed ? 'w-[5.6rem]' : 'w-[17rem]'}`}>
+        <div className="rounded-2xl border border-teal-300/20 bg-gradient-to-br from-sky-500/10 via-slate-900/50 to-teal-500/15 p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs tracking-[0.16em] text-teal-100">CC360</p>
+              <div className="flex items-center gap-2">
+                <img src={logo} alt="CareConnect 360 logo" className="h-8 w-8 rounded-md object-contain" />
+                {!collapsed ? <p className="text-xs tracking-[0.16em] text-teal-100">CareConnect360</p> : null}
+              </div>
               {!collapsed ? (
                 <>
                   <h2 className="mt-1 font-display text-sm text-white">CareConnect 360</h2>
@@ -131,14 +135,16 @@ function Sidebar() {
               type="button"
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               onClick={() => setCollapsed((prev) => !prev)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-teal-300/20 bg-slate-900/30 text-slate-100 transition hover:bg-slate-800/70"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-teal-300/30 bg-slate-900/40 text-slate-100 transition hover:bg-slate-800/70"
             >
-              <span aria-hidden="true">{collapsed ? '»' : '«'}</span>
+              <svg viewBox="0 0 20 20" className={`h-4 w-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} fill="none" aria-hidden="true">
+                <path d="M12.5 4.5L7 10l5.5 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           </div>
         </div>
 
-        <nav className="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
+        <nav className="app-scrollbar mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
           <div>
             {!collapsed ? <p className="px-2 text-[0.6875rem] uppercase tracking-[0.16em] text-slate-400">MANAGEMENT</p> : null}
             <div className="mt-2 flex flex-col gap-1.5">

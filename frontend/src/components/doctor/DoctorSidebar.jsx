@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { getAuthUser } from '../../utils/authUser.js';
+import logo from '../../assets/careconnect-logo.png';
 
 const items = [
   { label: 'My Dashboard', path: '/doctor/dashboard', icon: '🏠' },
@@ -18,13 +19,16 @@ function DoctorSidebar() {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[17rem] flex-col border-r border-slate-800/80 bg-slate-900/80 p-5 backdrop-blur-xl lg:flex">
-        <div className="rounded-2xl border border-teal-300/20 bg-gradient-to-br from-teal-500/20 to-sky-500/10 p-4">
-          <p className="text-xs tracking-[0.16em] text-teal-100">CARECONNECT360</p>
+      <aside className="sticky top-0 hidden h-screen w-[17rem] flex-col border-r border-slate-800/80 bg-gradient-to-b from-slate-950 via-[#04142d] to-slate-950 p-5 backdrop-blur-xl lg:flex">
+        <div className="rounded-2xl border border-teal-300/20 bg-gradient-to-br from-sky-500/10 via-slate-900/50 to-teal-500/15 p-4">
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="CareConnect 360 logo" className="h-8 w-8 rounded-md object-contain" />
+            <p className="text-xs tracking-[0.16em] text-teal-100">CARECONNECT360</p>
+          </div>
           <h2 className="mt-2 font-display text-lg text-white">DOCTOR PORTAL</h2>
         </div>
 
-        <nav className="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
+        <nav className="app-scrollbar mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="mt-2 flex flex-col gap-1.5">
             {items.map((item) => {
               const active = location.pathname === item.path;

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import logo from '../../assets/careconnect-logo.png';
 
 const items = [
   { label: 'My Dashboard', icon: '🏠', path: '/patient/dashboard' },
@@ -31,9 +32,12 @@ function PatientSidebar({ patient }) {
     }`;
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-[17.5rem] shrink-0 flex-col border-r border-slate-800/60 bg-slate-950/90 px-4 py-8 backdrop-blur-xl lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-[17.5rem] shrink-0 flex-col border-r border-slate-800/60 bg-gradient-to-b from-slate-950 via-[#04142d] to-slate-950 px-4 py-8 backdrop-blur-xl lg:flex">
       <div className="px-1">
-        <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-teal-200/90">CARECONNECT360</p>
+        <div className="flex items-center gap-2">
+          <img src={logo} alt="CareConnect 360 logo" className="h-8 w-8 rounded-md object-contain" />
+          <p className="text-[0.65rem] font-semibold tracking-[0.2em] text-teal-200/90">CARECONNECT360</p>
+        </div>
         <p className="mt-1 text-lg font-semibold tracking-tight text-white">PATIENT PORTAL</p>
       </div>
 
@@ -45,7 +49,7 @@ function PatientSidebar({ patient }) {
         <p className="mt-1 font-mono text-[11px] text-slate-500">{code}</p>
       </div>
 
-      <nav className="mt-10 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+      <nav className="app-scrollbar mt-10 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
         {items.map((item) => (
           <Link key={item.path} to={item.path} className={navClass(item.path)}>
             {location.pathname === item.path ? (
