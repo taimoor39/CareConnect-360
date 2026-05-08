@@ -5,6 +5,7 @@ function PendingAlerts({ data }) {
   const pending = data || {};
   return (
     <div className="mt-3 space-y-1 text-xs">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Pending Alerts</p>
       {pending.unpaidInvoices > 0 ? <button type="button" onClick={() => navigate('/billing?status=Unpaid')} className="flex w-full items-center justify-between rounded bg-slate-900/70 px-2 py-1 text-amber-200"><span>{pending.unpaidInvoices} invoices unpaid</span><span>Review →</span></button> : null}
       {pending.missedToday > 0 ? <button type="button" onClick={() => navigate('/appointments?status=Missed')} className="flex w-full items-center justify-between rounded bg-slate-900/70 px-2 py-1 text-amber-200"><span>{pending.missedToday} appointments missed today</span><span>View →</span></button> : null}
       {pending.incompleteProfiles > 0 ? <button type="button" onClick={() => navigate('/doctors')} className="flex w-full items-center justify-between rounded bg-slate-900/70 px-2 py-1 text-amber-200"><span>{pending.incompleteProfiles} doctor profiles incomplete</span><span>Complete →</span></button> : null}

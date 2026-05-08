@@ -6,7 +6,7 @@ const items = [
   { label: 'My Schedule', path: '/doctor/schedule', icon: '📅' },
   { label: 'My Patients', path: '/doctor/patients', icon: '👥' },
   { label: 'Consultations', path: '/doctor/consultations', icon: '📝' },
-  { label: 'Medical Reports', path: '/doctor/reports', icon: '📄' },
+  { label: 'Reports', path: '/doctor/reports', icon: '📄' },
   { label: 'Prescriptions', path: '/doctor/prescriptions', icon: '💊' },
   { label: 'My Profile', path: '/doctor/profile', icon: '👤' },
 ];

@@ -43,11 +43,19 @@ export const globalLimiter = rateLimit({
  * Stricter limiter for auth endpoints (login, password reset).
  * 15 attempts per 15-minute window.
  */
+const shouldSkipAuthLimiterForRequest = (req) => {
+  // Local development and automated QA runs can trigger rapid login attempts.
+  // Skip auth limiter on localhost to avoid locking out local users.
+  if (process.env.NODE_ENV !== 'production' && isLocalIp(req.ip)) return true;
+  return false;
+};
+
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: shouldSkipAuthLimiterForRequest,
   message: { success: false, message: 'Too many login attempts — please try again later' },
 });
 

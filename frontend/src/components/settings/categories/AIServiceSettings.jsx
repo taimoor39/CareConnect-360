@@ -12,7 +12,7 @@ function AIServiceSettings({ data, errors, dirty, saving, health, healthLoading,
         <p>AI Service Status: {health?.status || 'unknown'}</p>
         <p>Response time: {health?.responseMs ?? '-'}ms</p>
         <p>Last checked: {health ? 'just now' : 'not checked'}</p>
-        <button type="button" onClick={onCheckHealth} disabled={healthLoading} className="mt-2 rounded border border-sky-300/30 px-2 py-1 text-xs text-sky-100">{healthLoading ? 'Checking...' : 'Check Now'}</button>
+        <button type="button" onClick={onCheckHealth} disabled={healthLoading} className="mt-2 rounded border border-sky-300/30 px-2 py-1 text-xs text-sky-100">{healthLoading ? 'Checking...' : 'Check Connection'}</button>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <SettingsField label="AI Service URL" error={errors.url}><input value={data.url || ''} onChange={(e) => set('url', e.target.value.replace(/\/+$/, ''))} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>

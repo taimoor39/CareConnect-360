@@ -44,6 +44,7 @@ function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [adminName, setAdminName] = useState('');
   const [timeAgo, setTimeAgo] = useState('just now');
+  const [lastUpdatedClock, setLastUpdatedClock] = useState('--:--:--');
 
   useEffect(() => {
     const token = localStorage.getItem('token') || localStorage.getItem('careconnect360_token');
@@ -85,7 +86,9 @@ function Dashboard() {
       setSystemHealth(valueOrNull(5, (r) => r.data?.data ?? null));
       setRecentActivity(valueOrNull(6, (r) => r.data?.data ?? []));
       setPendingActions(valueOrNull(7, (r) => r.data?.data ?? {}));
-      setLastUpdated(new Date());
+      const now = new Date();
+      setLastUpdated(now);
+      setLastUpdatedClock(now.toLocaleTimeString('en-GB'));
       if (results.some((item) => item.status === 'rejected')) {
         toast.error('Some dashboard sections failed to load');
       }
@@ -148,7 +151,7 @@ function Dashboard() {
     <DashboardLayout
       subtitle="ADMIN PORTAL"
       title={getGreeting(adminName || 'Admin')}
-      subline={`${dateLabel}  |  Last updated: ${timeAgo}`}
+      subline={`${dateLabel}  |  Last updated: ${timeAgo} (${lastUpdatedClock})`}
     >
       <KPIStatCards data={kpiStats} />
 

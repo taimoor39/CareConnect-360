@@ -86,6 +86,9 @@ const patientPortalLimiter = rateLimit({
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
 
 app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);

@@ -188,7 +188,7 @@ Set the following fields:
 How to verify:
 
 1. Save AI Service settings.
-2. Click **Check Now** in the AI Service section.
+2. Click **Check Connection** in the AI Service section.
 3. Confirm status is `online` (or investigate if `slow` / `error`).
 
 Notes:
@@ -215,12 +215,18 @@ curl http://localhost:8001/api/health
 
 ### Seed Data
 
-```bash
-# Start backend, then hit the seeder endpoint once:
-POST /api/seeders/run
-```
+The backend reads seeder defaults from `backend/src/config/seeders.json`.
 
-Default admin credentials are in `backend/src/config/seeders.json`.
+Current seeded admin credentials:
+
+- Email: `admin@example.com`
+- Password: `abc123456`
+
+To run seeders:
+
+1. Start backend (`npm run dev` at project root, or backend workspace directly).
+2. Login as an existing admin.
+3. Call `POST /api/seeders/run`.
 
 ### Run
 
@@ -232,6 +238,16 @@ npm run dev
 npm run dev:backend
 npm run dev:frontend
 ```
+
+### Login Troubleshooting (Local Development)
+
+If login shows **"Too many login attempts — please try again later"** during local testing:
+
+- Make sure backend is running with latest code (restart dev server).
+- In non-production, auth limiter now skips localhost requests.
+- Use seeded credentials from `backend/src/config/seeders.json`:
+  - `admin@example.com / abc123456`
+- Confirm MongoDB points to the same DB where seeded user exists (`backend/.env` `MONGODB_URI`).
 
 ### Production Build
 

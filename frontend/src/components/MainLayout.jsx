@@ -1,13 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-
 import Sidebar from './Sidebar.jsx';
 import StatusBadge from './ui/StatusBadge.jsx';
-
-const LogoutIcon = ({ className = 'h-4 w-4' }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-    <path d="M9 4.5H6.8A2.8 2.8 0 0 0 4 7.3v9.4a2.8 2.8 0 0 0 2.8 2.8H9M14 8l4 4-4 4M8 12h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
 
 function MainLayout({
   title,
@@ -15,14 +7,6 @@ function MainLayout({
   subline = '',
   children,
 }) {
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    localStorage.removeItem('careconnect360_token');
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
-
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 antialiased">
       <div className="grid min-h-screen grid-cols-1 text-sm lg:grid-cols-[17rem_minmax(0,1fr)]">
@@ -46,14 +30,6 @@ function MainLayout({
                   />
                 </div>
                 <StatusBadge label="Live" />
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="inline-flex min-h-[2.75rem] items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                >
-                  <LogoutIcon />
-                  Logout
-                </button>
               </div>
             </div>
           </header>
