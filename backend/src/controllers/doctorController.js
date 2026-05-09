@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import DoctorProfile from '../models/DoctorProfile.js';
+import { notifyAdmins } from '../realtime/adminRealtime.js';
 import User from '../models/User.js';
 
 import AppError from '../utils/AppError.js';
@@ -319,6 +320,8 @@ export const toggleDoctorStatus = asyncHandler(async (req, res) => {
 
   await auditFromReq(req, nextStatus ? 'DOCTOR_ACTIVATED' : 'DOCTOR_DEACTIVATED', `User:${user._id}`);
   invalidateCache();
+
+  notifyAdmins({ scopes: ['dashboard'], reason: 'doctor_status_toggle' });
 
   res.json({
     success: true,

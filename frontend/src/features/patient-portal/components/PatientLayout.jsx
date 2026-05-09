@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getMyProfile } from '../../api/patientPortal.js';
-import { clearAuthSession } from '../../utils/authUser.js';
-import PatientHeader from './PatientHeader.jsx';
+import { getMyProfile } from '@/api/patientPortal.js';
+import { clearAuthSession } from '@/utils/authUser.js';
+import PageHeader from '@/shared/components/PageHeader.jsx';
 import PatientSidebar from './PatientSidebar.jsx';
 
 const titles = {
@@ -59,32 +59,45 @@ function PatientLayout() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6 text-center text-slate-200">
         <p className="max-w-md text-lg font-medium text-white">Your patient record is being set up.</p>
         <p className="mt-3 max-w-md text-sm text-slate-400">Please contact reception if this persists.</p>
-        <button
-          type="button"
-          onClick={() => logoutAndLogin(navigate)}
-          className="mt-8 rounded-lg bg-teal-500 px-6 py-2.5 text-sm font-semibold text-slate-950"
-        >
+        <button type="button" onClick={() => logoutAndLogin(navigate)} className="care-btn-primary mt-8">
           Logout
         </button>
       </div>
     );
   }
 
+  const mobileLogout = (
+    <button
+      type="button"
+      onClick={() => logoutAndLogin(navigate)}
+      className="rounded-[var(--radius-md)] border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-teal-500/35 hover:text-teal-100 lg:hidden"
+    >
+      Logout
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="relative h-screen max-h-screen min-h-0 overflow-hidden text-slate-100" style={{ background: 'var(--bg-primary)' }}>
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(20,184,166,0.08),transparent_50%),radial-gradient(ellipse_at_bottom,rgba(15,23,42,1),#020617)]" />
-      <div className="relative flex min-h-screen">
+      <div className="relative z-[1] flex h-full min-h-0 w-full overflow-hidden">
         <PatientSidebar patient={patient} />
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <PatientHeader title={title} patient={patient} user={user} />
-          <div className="flex-1 px-4 py-8 sm:px-8">
+        <main
+          id="main-content"
+          className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
+        >
+          <PageHeader eyebrow="PATIENT PORTAL" title={title} rightContent={mobileLogout} />
+          <div style={{ padding: '24px 32px' }} className="pb-28 lg:pb-10">
             {loading ? (
-              <div className="flex justify-center py-20 text-slate-400">Loading your portal…</div>
+              <div className="mx-auto max-w-2xl space-y-4 py-10">
+                <div className="skeleton h-36 w-full rounded-[var(--radius-lg)]" />
+                <div className="skeleton h-24 w-full rounded-[var(--radius-lg)]" />
+                <div className="skeleton h-24 w-full rounded-[var(--radius-lg)]" />
+              </div>
             ) : (
               <Outlet context={{ patient, user, setPatient }} />
             )}
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );

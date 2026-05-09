@@ -10,11 +10,13 @@ import {
   getDoctorDashboardStats,
   getDoctorPatientDetail,
   getDoctorPatients,
+  getDoctorProfile,
   getDoctorReports,
   getDoctorSchedule,
   rejectDoctorSummary,
   summarizeDoctorReport,
   updateConsultation,
+  updateDoctorProfile,
   uploadDoctorReport,
 } from '../controllers/doctorPortalController.js';
 import {
@@ -25,12 +27,16 @@ import {
   scheduleQueryValidator,
   updateConsultationValidator,
 } from '../validators/consultationValidators.js';
+import { updateDoctorProfileValidator } from '../validators/doctorValidators.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(protect);
 router.use(authorizeRoles('doctor'));
+
+router.get('/profile', getDoctorProfile);
+router.put('/profile', updateDoctorProfileValidator, validate, updateDoctorProfile);
 
 router.get('/dashboard-stats', getDoctorDashboardStats);
 router.get('/schedule', scheduleQueryValidator, validate, getDoctorSchedule);

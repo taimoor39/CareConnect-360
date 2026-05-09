@@ -1,31 +1,25 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { seedAdmin } from './adminSeeder.js';
-import { seedMenus } from './menuSeeder.js';
 
-const registeredSeeders = {
-  admin: seedAdmin,
-  menus: seedMenus,
-};
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const runConfiguredSeeders = async (config = {}) => {
-  const seedQueue = Array.isArray(config.seeders) && config.seeders.length > 0 ? config.seeders : ['admin'];
-  const results = [];
+async function loadAdminDefaults() {
+  const filePath = path.join(__dirname, 'admin.defaults.json');
+  const raw = await readFile(filePath, 'utf8');
+  return JSON.parse(raw);
+}
 
-  for (const seederName of seedQueue) {
-    const seeder = registeredSeeders[seederName];
+export { seedAdmin };
 
-    if (!seeder) {
-      results.push({
-        name: seederName,
-        status: 'skipped',
-        reason: 'seeder is not registered yet',
-      });
-      continue;
-    }
-
-    const options = config[seederName] || {};
-    const result = await seeder(options);
-    results.push(result);
-  }
-
-  return results;
-};
+/**
+ * Bootstrap entry point: creates the default admin from `admin.defaults.json` if missing.
+ * Returns a one-element results array (same shape as the legacy multi-seeder runner).
+ */
+export async function seedAdminFromDefaults() {
+  const defaults = await loadAdminDefaults();
+  const result = await seedAdmin(defaults);
+  return [result];
+}

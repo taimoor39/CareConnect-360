@@ -17,7 +17,7 @@ function RevenueChart({ data, period, onChangePeriod }) {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold text-white">Revenue Overview</h3>
-          <p className="text-xs text-slate-400">Last 6 months</p>
+          <p className="text-xs text-slate-400">{period === '1m' ? 'Last month' : period === '3m' ? 'Last 3 months' : 'Last 6 months'}</p>
         </div>
         <div className="flex gap-1 rounded-lg border border-slate-700 p-1">
           {['6m', '3m', '1m'].map((p) => (

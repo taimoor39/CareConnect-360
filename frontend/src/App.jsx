@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RoleProtectedRoute from './components/auth/RoleProtectedRoute.jsx';
@@ -28,7 +30,7 @@ import ReceptionistPatients from './pages/receptionist/ReceptionistPatients.jsx'
 import ReceptionistAppointments from './pages/receptionist/ReceptionistAppointments.jsx';
 import ReceptionistCheckin from './pages/receptionist/ReceptionistCheckin.jsx';
 import ReceptionistBilling from './pages/receptionist/ReceptionistBilling.jsx';
-import PatientLayout from './components/patient/PatientLayout.jsx';
+import PatientLayout from '@features/patient-portal/components/PatientLayout.jsx';
 import PatientDashboard from './pages/patient/PatientDashboard.jsx';
 import PatientAppointments from './pages/patient/PatientAppointments.jsx';
 import PatientPrescriptions from './pages/patient/PatientPrescriptions.jsx';
@@ -40,6 +42,10 @@ function ScrollToTopOnRouteChange() {
   const location = useLocation();
 
   useEffect(() => {
+    const main = document.getElementById('main-content');
+    if (main) {
+      main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
 
@@ -248,6 +254,22 @@ function App() {
       />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
+      <ToastContainer
+        position="top-right"
+        autoClose={3500}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        theme="dark"
+        toastStyle={{
+          background: '#111e30',
+          border: '1px solid rgba(148,163,184,0.12)',
+          borderRadius: 10,
+          fontSize: 13,
+          fontFamily: 'Inter, sans-serif',
+        }}
+      />
     </>
   );
 }

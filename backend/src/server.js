@@ -1,6 +1,7 @@
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
+import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +33,7 @@ import settingsRoutes from './routes/settingsRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import receptionistRoutes from './routes/receptionistRoutes.js';
+import { initAdminRealtime } from './realtime/adminRealtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,10 +86,12 @@ const patientPortalLimiter = rateLimit({
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  const mongoConnected = mongoose.connection.readyState === 1;
+  res.json({ status: 'ok', mongo: mongoConnected ? 'connected' : 'disconnected' });
 });
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  const mongoConnected = mongoose.connection.readyState === 1;
+  res.json({ status: 'ok', mongo: mongoConnected ? 'connected' : 'disconnected' });
 });
 
 app.use('/api/admin', adminRoutes);
@@ -243,6 +247,7 @@ const startServer = async () => {
         : schedules?.patientReEngagement?.schedule,
     });
     httpServer = app.listen(port, () => console.log(`Server is running on port ${port}`));
+    initAdminRealtime(httpServer, { corsOrigins: allowedOrigins });
   } catch (error) {
     console.error('Failed to start server:', error.message);
     process.exit(1);

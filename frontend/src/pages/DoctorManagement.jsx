@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 
 import { getDoctorById, getDoctors, getDoctorStats, toggleDoctorStatus } from '../api/doctors.js';
 import { getStaff, getStaffStats, toggleStaffStatus } from '../api/staff.js';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import DoctorDetailDrawer from '../components/doctors/DoctorDetailDrawer.jsx';
 import DoctorStatCards from '../components/doctors/DoctorStatCards.jsx';
 import DoctorTable from '../components/doctors/DoctorTable.jsx';

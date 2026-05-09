@@ -26,6 +26,12 @@ export const requireAuth = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid or expired token' });
     }
 
+    const tokenVersion = Number(payload.tv ?? 0);
+    const currentVersion = Number(user.tokenVersion ?? 0);
+    if (tokenVersion !== currentVersion) {
+      return res.status(401).json({ success: false, message: 'Session expired — please sign in again' });
+    }
+
     if (!user.isActive) {
       return res.status(403).json({ success: false, message: 'Account suspended — contact an administrator' });
     }

@@ -67,6 +67,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    /** Incremented on password changes that must invalidate existing JWTs */
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true,

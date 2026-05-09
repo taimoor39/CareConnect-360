@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 
 import { updateStaff } from '../../api/staff.js';
+import CareModal from '@/shared/components/CareModal.jsx';
 
 const parseName = (name = '') => {
   const parts = String(name).trim().split(/\s+/).filter(Boolean);
@@ -103,14 +104,11 @@ function EditStaffModal({ staff, isOpen, onClose, onSuccess }) {
     }
   };
 
-  if (!isOpen || !staff) return null;
+  if (!staff) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
-        <h3 className="font-display text-xl text-white">Edit Staff — {staff.name}</h3>
-
-        <form className="mt-4 grid gap-4" onSubmit={handleSubmit}>
+    <CareModal open={isOpen} onClose={onClose} title={`Edit staff — ${staff.name}`} size="wide">
+        <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <input
@@ -183,8 +181,7 @@ function EditStaffModal({ staff, isOpen, onClose, onSuccess }) {
 
           <p className="text-[11px] text-slate-400">To change email or password, use User Management</p>
         </form>
-      </div>
-    </div>
+    </CareModal>
   );
 }
 

@@ -44,6 +44,18 @@ const pctChange = (current, previous) => {
 
 const clampPercent = (value) => Math.max(0, Math.min(100, Number(value || 0)));
 
+/** Keeps collected ≤ invoiced and collection rate in [0, 100] for display sanity. */
+const normalizeInvoiceAmounts = (invoicedRaw, collectedRaw) => {
+  const invoiced = Math.max(0, Number(invoicedRaw || 0));
+  const collected = Math.min(Math.max(0, Number(collectedRaw || 0)), invoiced);
+  return {
+    invoiced,
+    collected,
+    outstanding: Math.max(invoiced - collected, 0),
+    collectionRate: invoiced > 0 ? Number(((collected / invoiced) * 100).toFixed(1)) : 0,
+  };
+};
+
 const getOutstandingMatch = {
   paymentStatus: { $in: ['Unpaid', 'Partial'] },
 };
@@ -91,7 +103,10 @@ export const getAnalyticsSummary = asyncHandler(async (req, res) => {
   const { from, to } = parseRange(req.query.from, req.query.to);
   const { prevFrom, prevTo } = previousRange(from, to);
 
-  const [patientsCurrent, patientsPrev, apptCurrent, apptPrev, revenueRowsCurrent, revenueRowsPrev, completedCurrent, completedPrev] = await Promise.all([
+  const [
+    patientsCurrent, patientsPrev, apptCurrent, apptPrev, revenueRowsCurrent, revenueRowsPrev, completedCurrent, completedPrev,
+    totalPatientsAllTime,
+  ] = await Promise.all([
     Patient.countDocuments({ isArchived: false, createdAt: { $gte: from, $lte: to } }),
     Patient.countDocuments({ isArchived: false, createdAt: { $gte: prevFrom, $lte: prevTo } }),
     Appointment.countDocuments({ date: { $gte: from, $lte: to } }),
@@ -100,6 +115,7 @@ export const getAnalyticsSummary = asyncHandler(async (req, res) => {
     Invoice.aggregate([{ $match: { createdAt: { $gte: prevFrom, $lte: prevTo } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
     Appointment.countDocuments({ status: 'Completed', date: { $gte: from, $lte: to } }),
     Appointment.countDocuments({ status: 'Completed', date: { $gte: prevFrom, $lte: prevTo } }),
+    Patient.countDocuments({ isArchived: false }),
   ]);
 
   const [outstandingCurrent, outstandingPrev] = await Promise.all([
@@ -116,7 +132,7 @@ export const getAnalyticsSummary = asyncHandler(async (req, res) => {
     success: true,
     data: {
       range: { from, to, prevFrom, prevTo },
-      totalPatients: { value: patientsCurrent, trend: pctChange(patientsCurrent, patientsPrev) },
+      totalPatients: { value: totalPatientsAllTime, trend: pctChange(patientsCurrent, patientsPrev) },
       appointments: { value: apptCurrent, trend: pctChange(apptCurrent, apptPrev) },
       revenue: { value: revenueCurrent, trend: pctChange(revenueCurrent, revenuePrev) },
       completionRate: { value: completionRateCurrent, trend: pctChange(completionRateCurrent, completionRatePrev) },
@@ -241,7 +257,8 @@ export const getAnalyticsOverview = asyncHandler(async (req, res) => {
   const attendancePool = totalAppointments - cancelledCount;
   const attendanceRate = attendancePool > 0 ? ((completedCount + checkedInCount + inProgressCount) / attendancePool) * 100 : 0;
   const totalInvoicedAmount = revenueSplit.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const paidAmount = Number(paidInvoiceRows?.[0]?.paid || 0);
+  const paidAmountRaw = Number(paidInvoiceRows?.[0]?.paid || 0);
+  const paidAmount = Math.min(paidAmountRaw, totalInvoicedAmount);
   const invoiceCollectionRate = totalInvoicedAmount > 0 ? (paidAmount / totalInvoicedAmount) * 100 : 0;
   const doctorAvailability = totalDoctors > 0 ? (activeDoctors / totalDoctors) * 100 : 0;
   const patientGrowthRate = clampPercent(pctChange(patientsCurrent, patientsPrev));
@@ -587,7 +604,7 @@ export const getAnalyticsRevenue = asyncHandler(async (req, res) => {
   const trendExpr = getDateGroupExpr(trendFormat);
   const tableView = String(req.query.tableView || 'month').toLowerCase();
 
-  const [totalsRows, trendRows, paymentMethodRows, byMonthRows, byDoctorRows, byPatientRows, outstandingRows] = await Promise.all([
+  const [totalsRows, trendRows, paymentMethodRows, byMonthRows, byDoctorRows, byPatientRows] = await Promise.all([
     Invoice.aggregate([
       { $match: { createdAt: { $gte: from, $lte: to } } },
       {
@@ -706,21 +723,24 @@ export const getAnalyticsRevenue = asyncHandler(async (req, res) => {
       { $sort: { totalSpent: -1 } },
       { $limit: 20 },
     ]),
-    sumInvoiceOutstanding({ ...getOutstandingMatch, createdAt: { $gte: from, $lte: to } }),
   ]);
 
-  const totals = totalsRows?.[0] || { invoiced: 0, collected: 0, invoices: 0 };
-  const outstanding = Number(outstandingRows || 0);
-  const avgPerVisit = Number(totals.invoices || 0) > 0 ? Number(totals.invoiced || 0) / Number(totals.invoices || 0) : 0;
-  const collectionRate = Number(totals.invoiced || 0) > 0 ? (Number(totals.collected || 0) / Number(totals.invoiced || 0)) * 100 : 0;
+  const totalsRaw = totalsRows?.[0] || { invoiced: 0, collected: 0, invoices: 0 };
+  const totalsNorm = normalizeInvoiceAmounts(totalsRaw.invoiced, totalsRaw.collected);
+  const outstanding = totalsNorm.outstanding;
+  const avgPerVisit = Number(totalsRaw.invoices || 0) > 0 ? totalsNorm.invoiced / Number(totalsRaw.invoices || 0) : 0;
+  const collectionRate = totalsNorm.collectionRate;
 
-  const trend = trendRows.map((row) => ({
-    period: row._id,
-    invoiced: Number(row.invoiced || 0),
-    collected: Number(row.collected || 0),
-    outstanding: Math.max(Number(row.invoiced || 0) - Number(row.collected || 0), 0),
-    invoices: Number(row.invoices || 0),
-  }));
+  const trend = trendRows.map((row) => {
+    const n = normalizeInvoiceAmounts(row.invoiced, row.collected);
+    return {
+      period: row._id,
+      invoiced: n.invoiced,
+      collected: n.collected,
+      outstanding: n.outstanding,
+      invoices: Number(row.invoices || 0),
+    };
+  });
 
   const paymentTotal = paymentMethodRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const paymentMethods = paymentMethodRows.map((row) => ({
@@ -731,17 +751,15 @@ export const getAnalyticsRevenue = asyncHandler(async (req, res) => {
 
   const byMonth = byMonthRows.map((row, idx, arr) => {
     const prev = idx > 0 ? Number(arr[idx - 1].invoiced || 0) : 0;
-    const invoiced = Number(row.invoiced || 0);
-    const collected = Number(row.collected || 0);
-    const out = Math.max(invoiced - collected, 0);
+    const n = normalizeInvoiceAmounts(row.invoiced, row.collected);
     return {
       month: row._id,
       invoices: Number(row.invoices || 0),
-      invoiced,
-      collected,
-      outstanding: out,
-      collectionRate: invoiced > 0 ? Number(((collected / invoiced) * 100).toFixed(1)) : 0,
-      vsPrevMonth: computeGrowth(invoiced, prev),
+      invoiced: n.invoiced,
+      collected: n.collected,
+      outstanding: n.outstanding,
+      collectionRate: n.collectionRate,
+      vsPrevMonth: computeGrowth(n.invoiced, prev),
     };
   });
 
@@ -751,8 +769,8 @@ export const getAnalyticsRevenue = asyncHandler(async (req, res) => {
     success: true,
     data: {
       stats: {
-        totalInvoiced: Number(totals.invoiced || 0),
-        totalCollected: Number(totals.collected || 0),
+        totalInvoiced: totalsNorm.invoiced,
+        totalCollected: totalsNorm.collected,
         outstanding,
         avgPerVisit: Number(avgPerVisit.toFixed(1)),
       },
@@ -780,7 +798,7 @@ export const getAnalyticsRevenue = asyncHandler(async (req, res) => {
         bestPerformingMonth: bestMonth
           ? { month: bestMonth.month, amount: bestMonth.invoiced }
           : { month: '-', amount: 0 },
-        collectionEfficiency: Number(collectionRate.toFixed(1)),
+        collectionEfficiency: clampPercent(collectionRate),
       },
     },
   });

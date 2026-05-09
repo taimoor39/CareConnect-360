@@ -1,5 +1,7 @@
 import client from './client.js';
 
+export const getAuthMe = () => client.get('/auth/me');
+
 export const forgotPassword = (email) => client.post('/auth/forgot-password', { email });
 
 export const verifyResetToken = (token) => client.get(`/auth/verify-reset-token/${token}`);

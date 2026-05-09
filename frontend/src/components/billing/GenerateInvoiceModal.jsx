@@ -27,13 +27,15 @@ function GenerateInvoiceModal({
   const totals = invoiceForm.totals || { subtotal: 0, taxAmount: 0, totalAmount: 0 };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-6xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <h3 className="text-lg font-semibold text-white">{mode === 'edit' ? `Edit Invoice - ${invoiceForm.invoiceNumber || ''}` : 'Generate Invoice'}</h3>
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800">Close</button>
-        </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+    <div className="care-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="care-modal-panel care-modal-panel--2xl" onClick={(e) => e.stopPropagation()}>
+        <header className="care-modal-header">
+          <h2 className="care-modal-title">{mode === 'edit' ? `Edit invoice — ${invoiceForm.invoiceNumber || ''}` : 'Generate invoice'}</h2>
+          <button type="button" className="care-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </header>
+        <div className="care-modal-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {step === 1 ? (
             <div>
               <p className="text-sm font-medium text-slate-200">Select completed appointment</p>
@@ -147,10 +149,10 @@ function GenerateInvoiceModal({
             </div>
           )}
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-5 py-4">
+        <footer className="care-modal-footer">
           <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
           {step === 2 ? <button type="button" onClick={onSubmit} disabled={saving} className="h-9 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50">{saving ? 'Saving...' : 'Generate & Save Invoice'}</button> : null}
-        </div>
+        </footer>
       </div>
     </div>
   );

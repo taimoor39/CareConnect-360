@@ -6,7 +6,6 @@ backend/node_modules/
 # Environment files
 .env
 .env.*
-!.env.example
 backend/.env
 backend/.env.*
 ai-service/.env
@@ -29,8 +28,13 @@ coverage/
 
 # Python / AI service
 ai-service/venv/
-ai-service/__pycache__/
-ai-service/*.pyc
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
 ai-service/models/
 
 # Runtime uploads/artifacts
@@ -42,11 +46,9 @@ frontend/public/uploads/
 # Local-only config/data
 backend/src/config/seeders.local.json
 
-# QA artifacts
-qa_*.cjs
-
 # OS / editor
 .DS_Store
 Thumbs.db
 desktop.ini
+.idea/
 .vscode/settings.json

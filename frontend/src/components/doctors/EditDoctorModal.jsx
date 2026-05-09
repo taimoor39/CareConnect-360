@@ -3,6 +3,20 @@ import { toast } from 'react-toastify';
 
 import { updateDoctor } from '../../api/doctors.js';
 import useDoctorForm, { defaultDoctorForm } from '../../hooks/useDoctorForm.js';
+import CareModal from '@/shared/components/CareModal.jsx';
+
+const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function isOvernightShift(start, end) {
+  const s = String(start || '').trim();
+  const e = String(end || '').trim();
+  if (!HM.test(s) || !HM.test(e)) return false;
+  const mins = (t) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  return mins(e) <= mins(s);
+}
 
 const toForm = (doctor) => ({
   specialization: doctor?.specialization || '',
@@ -78,16 +92,18 @@ function EditDoctorModal({ doctor, isOpen, onClose, onSuccess, setDoctors, setSt
     }
   };
 
-  if (!isOpen || !doctor) return null;
+  if (!doctor) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
-        <h3 className="font-display text-xl text-white">
-          {doctor.profile?.isProfileComplete ? `Edit Doctor Profile — ${doctor.name}` : `Complete Doctor Profile — ${doctor.name}`}
-        </h3>
-        
-        <div className="mt-3 flex gap-4 text-xs text-slate-300 border-b border-slate-700/50 pb-3">
+    <CareModal
+      open={isOpen}
+      onClose={onClose}
+      size="3xl"
+      title={
+        doctor.profile?.isProfileComplete ? `Edit doctor profile — ${doctor.name}` : `Complete doctor profile — ${doctor.name}`
+      }
+    >
+      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 border-b border-[var(--border)] pb-3 text-xs text-[var(--text-secondary)]">
           <p><strong>Name:</strong> {doctor.name}</p>
           <p><strong>Email:</strong> {doctor.email}</p>
           <p><strong>Phone:</strong> {doctor.phone}</p>
@@ -145,6 +161,11 @@ function EditDoctorModal({ doctor, isOpen, onClose, onSuccess, setDoctors, setSt
               />
               {form.errors['schedule.shiftEnd'] ? <p className="mt-1 text-[11px] text-rose-300">{form.errors['schedule.shiftEnd']}</p> : null}
             </div>
+            {isOvernightShift(form.formData.schedule.shiftStart, form.formData.schedule.shiftEnd) ? (
+              <p className="md:col-span-2 rounded-md border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                Overnight shift — end time is on the next calendar day (same as backend slot generator).
+              </p>
+            ) : null}
             <div>
               <input
                 type="number"
@@ -191,8 +212,7 @@ function EditDoctorModal({ doctor, isOpen, onClose, onSuccess, setDoctors, setSt
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </CareModal>
   );
 }
 

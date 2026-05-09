@@ -283,10 +283,23 @@ export const changePassword = asyncHandler(async (req, res) => {
   if (!admin) throw AppError.notFound('User not found');
 
   const isMatch = await bcrypt.compare(currentPassword, admin.password);
-  if (!isMatch) throw AppError.badRequest('Current password is incorrect');
+  if (!isMatch) {
+    throw AppError.badRequest('Current password is incorrect', [
+      { field: 'currentPassword', message: 'Current password is incorrect' },
+    ]);
+  }
 
   const hashed = await bcrypt.hash(newPassword, 10);
-  await User.updateOne({ _id: admin._id }, { $set: { password: hashed } });
+  await User.updateOne(
+    { _id: admin._id },
+    {
+      $set: {
+        password: hashed,
+        requirePasswordChange: false,
+      },
+      $inc: { tokenVersion: 1 },
+    },
+  );
 
   await auditFromReq(req, 'PASSWORD_CHANGED', `User:${req.user._id}`, { changedBy: 'self' }, 'users').catch(() => {});
   res.json({ success: true, message: 'Password changed successfully' });

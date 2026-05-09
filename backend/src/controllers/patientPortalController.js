@@ -1,4 +1,5 @@
 import Appointment from '../models/Appointment.js';
+import Consultation from '../models/Consultation.js';
 import DoctorProfile from '../models/DoctorProfile.js';
 import Invoice from '../models/Invoice.js';
 import MedicalReport from '../models/MedicalReport.js';
@@ -53,8 +54,6 @@ export const updatePatientProfile = asyncHandler(async (req, res) => {
     firstName,
     lastName,
     phone,
-    dateOfBirth,
-    gender,
     addressLine1,
     city,
     emergencyContactName,
@@ -67,8 +66,6 @@ export const updatePatientProfile = asyncHandler(async (req, res) => {
   if (firstName !== undefined) patient.firstName = String(firstName).trim();
   if (lastName !== undefined) patient.lastName = String(lastName).trim();
   if (phone !== undefined) patient.phone = String(phone).trim();
-  if (dateOfBirth !== undefined) patient.dateOfBirth = new Date(dateOfBirth);
-  if (gender !== undefined) patient.gender = String(gender).trim();
   if (patient.firstName && patient.lastName) {
     patient.name = `${patient.firstName} ${patient.lastName}`.trim();
   }
@@ -190,10 +187,37 @@ export const listPatientAppointments = asyncHandler(async (req, res) => {
   ]);
 
   const merged = await attachDoctorMetaForAppointments(rows);
-  res.json({ success: true, data: { appointments: merged, pagination: paginationMeta(total, page, limit) } });
+  const ids = merged.map((r) => r._id).filter(Boolean);
+  const consultations = ids.length
+    ? await Consultation.find({
+        appointmentId: { $in: ids },
+        patientId: patient._id,
+        isDraft: false,
+      })
+        .select('appointmentId symptoms diagnosis consultationNotes followUpDate updatedAt')
+        .lean()
+    : [];
+  const byAppt = new Map(consultations.map((c) => [String(c.appointmentId), c]));
+  const withClinical = merged.map((r) => {
+    const c = byAppt.get(String(r._id));
+    return {
+      ...r,
+      consultation: c
+        ? {
+            symptoms: c.symptoms || '',
+            diagnosis: c.diagnosis || '',
+            consultationNotes: c.consultationNotes || '',
+            followUpDate: c.followUpDate || null,
+            updatedAt: c.updatedAt,
+          }
+        : null,
+    };
+  });
+
+  res.json({ success: true, data: { appointments: withClinical, pagination: paginationMeta(total, page, limit) } });
 });
 
-/** GET /api/patient/prescriptions — no clinical consultation notes */
+/** GET /api/patient/prescriptions — clinical notes live on appointment.consultation (non-draft) */
 export const listPatientPrescriptions = asyncHandler(async (req, res) => {
   const patient = await findPatientByUserId(req.user._id).select('_id').lean();
   if (!patient) throw AppError.notFound('Patient record not found');

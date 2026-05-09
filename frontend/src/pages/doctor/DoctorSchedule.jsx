@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { getDoctorSchedule } from '../../api/doctor.js';
 import AppointmentDetailDrawer from '../../components/appointments/AppointmentDetailDrawer.jsx';
-import DoctorLayout from '../../components/doctor/DoctorLayout.jsx';
+import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
 import WeeklyCalendar from '../../components/doctor/WeeklyCalendar.jsx';
 import { getAuthUser } from '../../utils/authUser.js';
 import { isoDateInPakistan } from '../../utils/isoDate.js';

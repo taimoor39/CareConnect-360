@@ -16,7 +16,7 @@ function RevenueOverviewPanel({ summary = {}, onSelectPatient }) {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={monthly}>
             <XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} tickFormatter={(v) => Math.round(Number(v)).toLocaleString()} />
             <Tooltip formatter={(value, _, payload) => [`Rs. ${Number(value).toLocaleString()}`, payload?.payload?.month]} />
             <Bar dataKey="total" fill="#2dd4bf" radius={[6, 6, 0, 0]} />
           </BarChart>

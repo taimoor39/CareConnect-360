@@ -9,6 +9,30 @@ const decodeJwtPayload = (token) => {
   }
 };
 
+/** True if token is missing, malformed, or past exp (with small skew). */
+export function isAuthTokenExpired(token) {
+  if (!token || typeof token !== 'string') return true;
+  try {
+    const payload = decodeJwtPayload(token);
+    if (!payload) return true;
+    if (!payload.exp || typeof payload.exp !== 'number') return false;
+    return payload.exp * 1000 <= Date.now() + 10_000;
+  } catch {
+    return true;
+  }
+}
+
+/** Returns stored bearer token or null; clears storage if expired/malformed. */
+export function getValidStoredTokenOrClear() {
+  const token = localStorage.getItem('careconnect360_token') || localStorage.getItem('token');
+  if (!token) return null;
+  if (isAuthTokenExpired(token)) {
+    clearAuthSession();
+    return null;
+  }
+  return token;
+}
+
 export function getAuthUser() {
   const token = localStorage.getItem('careconnect360_token') || localStorage.getItem('token') || '';
   let localUser = {};

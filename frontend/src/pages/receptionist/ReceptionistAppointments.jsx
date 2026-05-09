@@ -9,7 +9,7 @@ import AppointmentTable from '../../components/appointments/AppointmentTable.jsx
 import BookAppointmentModal from '../../components/appointments/BookAppointmentModal.jsx';
 import CancelDialog from '../../components/appointments/CancelDialog.jsx';
 import RescheduleModal from '../../components/appointments/RescheduleModal.jsx';
-import ReceptionistLayout from '../../components/receptionist/ReceptionistLayout.jsx';
+import ReceptionistLayout from '@/shared/layouts/ReceptionistLayout.jsx';
 import { todayISOInPakistan } from '../../utils/isoDate.js';
 
 function ReceptionistAppointments() {

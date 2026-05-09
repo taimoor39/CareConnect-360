@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import { getDoctorDashboardStats, getDoctorReports, getDoctorSchedule } from '../../api/doctor.js';
 import DoctorConsultationModal from '../../components/doctor/DoctorConsultationModal.jsx';
 import DoctorStatCards from '../../components/doctor/DoctorStatCards.jsx';
-import DoctorLayout from '../../components/doctor/DoctorLayout.jsx';
+import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
 import PendingReportsList from '../../components/doctor/PendingReportsList.jsx';
 import TodaySchedule from '../../components/doctor/TodaySchedule.jsx';
 import { getAuthUser } from '../../utils/authUser.js';

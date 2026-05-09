@@ -1,9 +1,13 @@
 import Appointment from '../models/Appointment.js';
 import Consultation from '../models/Consultation.js';
+import DoctorProfile from '../models/DoctorProfile.js';
 import MedicalReport from '../models/MedicalReport.js';
 import Patient from '../models/Patient.js';
 import Prescription from '../models/Prescription.js';
 import ReportSummary from '../models/ReportSummary.js';
+import User from '../models/User.js';
+import auditLogger from '../utils/auditLogger.js';
+import { notifyAdmins } from '../realtime/adminRealtime.js';
 import { getSettings, sendEngagementEmail } from '../utils/emailService.js';
 import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js';
 import AppError from '../utils/AppError.js';
@@ -175,6 +179,7 @@ export const createConsultation = asyncHandler(async (req, res) => {
     if (appointment.status === 'Checked-In') appointment.status = 'In-Progress';
     else if (appointment.status === 'In-Progress') appointment.status = 'Completed';
     await appointment.save();
+    notifyAdmins({ scopes: ['dashboard'], reason: 'consultation_completed' });
   }
 
   res.status(201).json({ success: true, data: consultation });
@@ -194,6 +199,7 @@ export const updateConsultation = asyncHandler(async (req, res) => {
     if (appointment.status === 'Checked-In') appointment.status = 'In-Progress';
     else if (appointment.status === 'In-Progress') appointment.status = 'Completed';
     await appointment.save();
+    notifyAdmins({ scopes: ['dashboard'], reason: 'consultation_completed' });
   }
 
   res.json({ success: true, data: consultation });
@@ -369,3 +375,99 @@ export const rejectDoctorSummary = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Summary rejected', data: summary });
 });
 
+export const getDoctorProfile = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const user = await User.findById(userId).select('-password').lean();
+  if (!user) throw AppError.notFound('User not found');
+
+  const profile = await DoctorProfile.findOne({ userId }).lean();
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const doctorId = userId;
+  const [
+    totalConsultations,
+    monthConsultations,
+    totalAppointments,
+    completedAppointments,
+  ] = await Promise.all([
+    Consultation.countDocuments({ doctorId }),
+    Consultation.countDocuments({ doctorId, createdAt: { $gte: startOfMonth } }),
+    Appointment.countDocuments({ doctorId }),
+    Appointment.countDocuments({ doctorId, status: 'Completed' }),
+  ]);
+
+  const completionRate =
+    totalAppointments > 0 ? Math.round((completedAppointments / totalAppointments) * 100) : 0;
+
+  const specialization = profile?.specialization || user.specialization || '';
+  const qualification = profile?.qualification || user.qualification || '';
+
+  res.json({
+    success: true,
+    data: {
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+      memberSince: user.createdAt,
+      specialization,
+      qualification,
+      bio: profile?.bio ?? '',
+      isProfileComplete: profile?.isProfileComplete ?? false,
+      schedule: {
+        days: profile?.schedule?.days || [],
+        shiftStart: profile?.schedule?.shiftStart || '',
+        shiftEnd: profile?.schedule?.shiftEnd || '',
+        maxPatientsPerDay: profile?.schedule?.maxPatientsPerDay ?? 20,
+        consultationDurationMins: profile?.schedule?.consultationDurationMins ?? 30,
+      },
+      stats: {
+        totalConsultations,
+        monthConsultations,
+        totalAppointments,
+        completedAppointments,
+        completionRate,
+      },
+    },
+  });
+});
+
+export const updateDoctorProfile = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { phone, bio } = req.body;
+  const updatedFields = [];
+
+  if (phone !== undefined) {
+    const normalized = String(phone).trim();
+    await User.findByIdAndUpdate(userId, { phone: normalized }, { runValidators: true });
+    updatedFields.push('phone');
+  }
+
+  if (bio !== undefined) {
+    const bioTrim = String(bio).trim();
+    await DoctorProfile.findOneAndUpdate(
+      { userId },
+      { $set: { bio: bioTrim } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    updatedFields.push('bio');
+  }
+
+  if (updatedFields.length === 0) {
+    return res.json({ success: true, message: 'No changes applied' });
+  }
+
+  await auditLogger({
+    userId,
+    action: 'DOCTOR_PROFILE_UPDATED',
+    target: `User:${userId}`,
+    targetCollection: 'users',
+    details: { updatedFields },
+    req,
+  });
+
+  res.json({ success: true, message: 'Profile updated successfully' });
+});

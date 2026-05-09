@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 
+import { PasswordInput } from '@/shared/components/PasswordField.jsx';
+
 import SettingsField from '../shared/SettingsField.jsx';
 import SettingsSection from '../shared/SettingsSection.jsx';
 
@@ -19,11 +21,35 @@ function ChangePasswordSettings({ data, errors, saving, onChange, onSubmit, admi
   return (
     <SettingsSection title="Change Password" subtitle="Update your admin account password">
       <div className="max-w-lg space-y-2">
-        <SettingsField label="Current Password" error={errors.currentPassword}><input type="password" value={data.currentPassword} onChange={(e) => onChange({ ...data, currentPassword: e.target.value })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
-        <SettingsField label="New Password" error={errors.newPassword}><input type="password" value={data.newPassword} onChange={(e) => onChange({ ...data, newPassword: e.target.value })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
+        <SettingsField label="Current Password" error={errors.currentPassword}>
+          <PasswordInput
+            autoComplete="current-password"
+            value={data.currentPassword}
+            onChange={(e) => onChange({ ...data, currentPassword: e.target.value })}
+            size="compact"
+            inputClassName="bg-slate-900/80"
+          />
+        </SettingsField>
+        <SettingsField label="New Password" error={errors.newPassword}>
+          <PasswordInput
+            autoComplete="new-password"
+            value={data.newPassword}
+            onChange={(e) => onChange({ ...data, newPassword: e.target.value })}
+            size="compact"
+            inputClassName="bg-slate-900/80"
+          />
+        </SettingsField>
         <div className="h-1 overflow-hidden rounded bg-slate-800"><div className={`h-full ${s.tone}`} style={{ width: s.width }} /></div>
         <p className="text-[11px] text-slate-400">{s.label}</p>
-        <SettingsField label="Confirm New Password" error={errors.confirmPassword}><input type="password" value={data.confirmPassword} onChange={(e) => onChange({ ...data, confirmPassword: e.target.value })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
+        <SettingsField label="Confirm New Password" error={errors.confirmPassword}>
+          <PasswordInput
+            autoComplete="new-password"
+            value={data.confirmPassword}
+            onChange={(e) => onChange({ ...data, confirmPassword: e.target.value })}
+            size="compact"
+            inputClassName="bg-slate-900/80"
+          />
+        </SettingsField>
         {data.confirmPassword ? <p className={`text-[11px] ${matches ? 'text-emerald-300' : 'text-rose-300'}`}>{matches ? 'Passwords match' : 'Passwords do not match'}</p> : null}
         <button type="button" onClick={onSubmit} disabled={saving || !data.currentPassword || !data.newPassword || !matches} className="w-full rounded-lg border border-teal-300/25 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100 disabled:opacity-50">{saving ? 'Changing...' : 'Change Password'}</button>
       </div>

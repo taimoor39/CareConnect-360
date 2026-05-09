@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="cc360-c" x1="16" y1="5" x2="16" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#64748b" />
+      <stop offset="1" stop-color="#0d9488" />
+    </linearGradient>
+  </defs>
+  <!-- Transparent canvas — matches brand mark without a white browser-tab tile -->
+  <path
+    d="M21.5 8.25c-5.9-2.35-12.75 2.05-12.75 10 0 7.95 6.85 12.35 12.75 10"
+    stroke="url(#cc360-c)"
+    stroke-width="4.35"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M19 13l1-.65.75 2.2.85-4 .95 4.55.8-2.55 1 .95"
+    stroke="#2dd4bf"
+    stroke-width="1.55"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

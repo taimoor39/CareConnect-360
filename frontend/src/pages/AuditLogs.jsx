@@ -13,7 +13,7 @@ import AuditFilterBar from '../components/audit/AuditFilterBar.jsx';
 import AuditLogDrawer from '../components/audit/AuditLogDrawer.jsx';
 import AuditStatCards from '../components/audit/AuditStatCards.jsx';
 import AuditTable from '../components/audit/AuditTable.jsx';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import { formatAction } from '../utils/auditHelpers.js';
 import { exportToCSV } from '../utils/exportCSV.js';
 import { exportAnalyticsPDF } from '../utils/exportPDF.js';

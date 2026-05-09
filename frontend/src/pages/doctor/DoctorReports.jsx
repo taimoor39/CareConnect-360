@@ -7,7 +7,8 @@ import {
   rejectAISummary,
 } from '../../api/doctor.js';
 import AISummaryReview from '../../components/doctor/AISummaryReview.jsx';
-import DoctorLayout from '../../components/doctor/DoctorLayout.jsx';
+import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
+import CareModal from '@/shared/components/CareModal.jsx';
 import { getAuthUser } from '../../utils/authUser.js';
 import { formatDateInPakistan } from '../../utils/isoDate.js';
 
@@ -126,45 +127,39 @@ function DoctorReports() {
       </section>
     </DoctorLayout>
     {selected ? (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
-        <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-900 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-white">{selected.title}</h3>
-            <button type="button" className="rounded border border-slate-700 px-2 py-1 text-xs" onClick={() => setSelected(null)}>Close</button>
-          </div>
-          <AISummaryReview
-            report={selected}
-            summary={summary}
-            generating={generating}
-            onGenerate={async () => {
-              setGenerating(true);
-              try {
-                const res = await generateAISummary(selected._id);
-                setSummary(res.data?.data || null);
-                toast.success('AI summary generated');
-                await fetchReports();
-              } catch (error) {
-                toast.error(error.response?.status === 503 ? 'AI service unavailable — try later' : 'Failed to generate summary');
-              } finally {
-                setGenerating(false);
-              }
-            }}
-            onRejectRegenerate={async () => {
-              await rejectAISummary(selected._id);
-              setSummary(null);
-              toast.warning('Summary rejected');
+      <CareModal open={!!selected} onClose={() => setSelected(null)} title={selected.title} size="3xl">
+        <AISummaryReview
+          report={selected}
+          summary={summary}
+          generating={generating}
+          onGenerate={async () => {
+            setGenerating(true);
+            try {
+              const res = await generateAISummary(selected._id);
+              setSummary(res.data?.data || null);
+              toast.success('AI summary generated');
               await fetchReports();
-            }}
-            onApprove={async (editedSummary) => {
-              if (!summary?._id) return;
-              await approveAISummary(selected._id, { summaryId: summary._id, editedSummary });
-              toast.success('Summary approved — patient can now view');
-              await fetchReports();
-              setSummary((prev) => ({ ...prev, simplifiedSummary: editedSummary, status: 'Approved' }));
-            }}
-          />
-        </div>
-      </div>
+            } catch (error) {
+              toast.error(error.response?.status === 503 ? 'AI service unavailable — try later' : 'Failed to generate summary');
+            } finally {
+              setGenerating(false);
+            }
+          }}
+          onRejectRegenerate={async () => {
+            await rejectAISummary(selected._id);
+            setSummary(null);
+            toast.warning('Summary rejected');
+            await fetchReports();
+          }}
+          onApprove={async (editedSummary) => {
+            if (!summary?._id) return;
+            await approveAISummary(selected._id, { summaryId: summary._id, editedSummary });
+            toast.success('Summary approved — patient can now view');
+            await fetchReports();
+            setSummary((prev) => ({ ...prev, simplifiedSummary: editedSummary, status: 'Approved' }));
+          }}
+        />
+      </CareModal>
     ) : null}
     </>
   );

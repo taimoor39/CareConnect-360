@@ -1,5 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 
+import { getValidStoredTokenOrClear } from '../../utils/authUser.js';
+
 const decodePayload = (token) => {
   try {
     const payloadPart = token.split('.')[1];
@@ -21,7 +23,7 @@ const roleRedirectMap = {
 
 function RoleProtectedRoute({ children, allowedRoles = [] }) {
   const location = useLocation();
-  const token = localStorage.getItem('careconnect360_token') || localStorage.getItem('token');
+  const token = getValidStoredTokenOrClear();
   if (!token) {
     return <Navigate to="/login" replace />;
   }

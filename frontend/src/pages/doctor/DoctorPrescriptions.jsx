@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import DoctorLayout from '../../components/doctor/DoctorLayout.jsx';
+import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
 import { getAuthUser } from '../../utils/authUser.js';
 import { formatDateInPakistan, formatTimeInPakistan } from '../../utils/isoDate.js';
 

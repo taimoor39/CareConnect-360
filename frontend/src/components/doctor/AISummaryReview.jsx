@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 
-const termPairs = [
-  ['hypertension', 'high blood pressure'],
-  ['tachycardia', 'fast heart rate'],
-  ['myocardial ischemia', 'reduced blood flow'],
-  ['renal insufficiency', 'kidney problems'],
-  ['hepatomegaly', 'enlarged liver'],
-];
+import { MEDICAL_TERM_PAIRS } from '@/constants/medicalTermPairs.js';
+
+/** Longer source phrases first — matches AI service substitution order */
+const termPairs = Object.entries(MEDICAL_TERM_PAIRS).sort((a, b) => b[0].length - a[0].length);
 
 function statusBadge(status) {
   if (status === 'Approved') return 'bg-emerald-500/20 text-emerald-200';

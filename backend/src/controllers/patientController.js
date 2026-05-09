@@ -5,6 +5,7 @@ import PortalAccessRequest from '../models/PortalAccessRequest.js';
 import User from '../models/User.js';
 
 import AppError from '../utils/AppError.js';
+import { notifyAdmins } from '../realtime/adminRealtime.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
@@ -242,6 +243,11 @@ export const createPatient = asyncHandler(async (req, res) => {
     portalAccessRequested: wantsPortalAccess && !linkedUserId,
   });
 
+  notifyAdmins({
+    scopes: wantsPortalAccess && !linkedUserId ? ['dashboard', 'portalBadge'] : ['dashboard'],
+    reason: 'patient_created',
+  });
+
   res.status(201).json({ success: true, data: { patient: toPublicPatient(patient) } });
 });
 
@@ -274,6 +280,8 @@ export const archivePatient = asyncHandler(async (req, res) => {
   await auditFromReq(req, 'PATIENT_ARCHIVED', `Patient:${patient._id}`, {
     patientId: patient.patientId || patient.patientCode || null,
   });
+
+  notifyAdmins({ scopes: ['dashboard'], reason: 'patient_archived' });
 
   res.json({ success: true, message: 'Patient archived successfully' });
 });

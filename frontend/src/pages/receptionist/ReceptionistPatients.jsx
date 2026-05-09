@@ -7,7 +7,7 @@ import EditPatientModal from '../../components/patients/EditPatientModal.jsx';
 import PatientDetailDrawer from '../../components/patients/PatientDetailDrawer.jsx';
 import PatientSearchBar from '../../components/patients/PatientSearchBar.jsx';
 import PatientTable from '../../components/patients/PatientTable.jsx';
-import ReceptionistLayout from '../../components/receptionist/ReceptionistLayout.jsx';
+import ReceptionistLayout from '@/shared/layouts/ReceptionistLayout.jsx';
 
 function normalizePatientPayload(formData) {
   return {

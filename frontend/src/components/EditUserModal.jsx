@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 
+import CareModal from '@/shared/components/CareModal.jsx';
+import { PasswordInput } from '@/shared/components/PasswordField.jsx';
+
 const roles = ['admin', 'doctor', 'receptionist', 'patient'];
 
 const inputClass = 'h-9 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20';
@@ -20,8 +23,6 @@ function EditUserModal({
   const [tempOpen, setTempOpen] = useState(false);
   const [tempPw, setTempPw] = useState('');
   const [settingTemp, setSettingTemp] = useState(false);
-
-  if (!open) return null;
 
   const sendReset = async () => {
     if (!onSendResetEmail) return;
@@ -50,19 +51,11 @@ function EditUserModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Edit User</h2>
-            {form.originalEmail && form.email !== form.originalEmail ? (
-              <p className="mt-0.5 text-[0.6875rem] text-amber-200">Changing email will require re-verification.</p>
-            ) : null}
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800">&times;</button>
-        </div>
-
-        <form className="max-h-[70vh] overflow-y-auto px-5 py-4" onSubmit={onSubmit}>
+    <CareModal open={open} onClose={onClose} title="Edit user" size="wide">
+      {form.originalEmail && form.email !== form.originalEmail ? (
+        <p className="mb-4 text-[0.6875rem] text-amber-200">Changing email will require re-verification.</p>
+      ) : null}
+      <form onSubmit={onSubmit}>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <input name="firstName" value={form.firstName} onChange={onChange} placeholder="First Name *" className={inputClass} />
@@ -88,7 +81,15 @@ function EditUserModal({
               </select>
             </div>
             <div>
-              <input type="password" name="password" value={form.password} onChange={onChange} placeholder="New Password (optional)" className={inputClass} />
+              <PasswordInput
+                name="password"
+                autoComplete="new-password"
+                value={form.password}
+                onChange={onChange}
+                placeholder="New Password (optional)"
+                size="sm"
+                inputClassName={`${inputClass} !border-slate-700 !bg-slate-900/80 focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20`}
+              />
               {errors.password ? <p className="mt-1 text-[11px] text-rose-300">{errors.password}</p> : null}
             </div>
             {form.role === 'doctor' ? (
@@ -104,8 +105,8 @@ function EditUserModal({
             ) : null}
           </div>
 
-          <div className="mt-6 border-t border-slate-800 pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">RESET USER PASSWORD</p>
+          <div className="mt-6 border-t border-[var(--border)] pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">RESET USER PASSWORD</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -127,11 +128,13 @@ function EditUserModal({
               <div className="mt-4 rounded-lg border border-slate-700 bg-slate-950/50 p-3">
                 <label className="block text-[11px] text-slate-400">
                   New Password
-                  <input
-                    type="password"
+                  <PasswordInput
+                    autoComplete="new-password"
                     value={tempPw}
                     onChange={(e) => setTempPw(e.target.value)}
-                    className={`${inputClass} mt-1`}
+                    className="mt-1"
+                    size="sm"
+                    inputClassName={`${inputClass} focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20`}
                     placeholder="Temporary password"
                   />
                 </label>
@@ -159,13 +162,12 @@ function EditUserModal({
             </p>
           </div>
 
-          <div className="mt-4 flex items-center justify-end gap-3 border-t border-slate-800 pt-4">
+          <div className="mt-4 flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
             <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
             <button type="submit" disabled={saving} className="h-9 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </form>
-      </div>
-    </div>
+    </CareModal>
   );
 }
 

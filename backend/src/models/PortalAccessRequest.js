@@ -56,8 +56,6 @@ const portalAccessRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-portalAccessRequestSchema.index({ patientId: 1 });
-portalAccessRequestSchema.index({ status: 1 });
 portalAccessRequestSchema.index({ requestedBy: 1 });
 portalAccessRequestSchema.index({ createdAt: -1 });
 

@@ -3,6 +3,73 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { forgotPassword } from '../api/auth.js';
+import {
+  AuthFormSurface,
+  AuthSplitLayout,
+  MailGlyph,
+} from '@/shared/components/auth/AuthSplitLayout.jsx';
+
+/* ─── Icon glyphs ────────────────────────────────────────────── */
+
+function CheckCircleGlyph({ className = 'mx-auto h-12 w-12 text-teal-400' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={1.5} opacity={0.35} />
+      <path
+        d="M8.5 12.5l2.5 2.5 5-5"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
+      <path
+        d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 shrink-0" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={1.5} />
+      <path
+        d="M12 7v5l3 3"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ArrowLeftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5" aria-hidden>
+      <path
+        d="M19 12H5M11 6l-6 6 6 6"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/* ─── Page component ─────────────────────────────────────────── */
 
 function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -36,8 +103,13 @@ function ForgotPassword() {
       setSentTo(email.trim());
       setSent(true);
       setCooldown(60);
-    } catch {
-      toast.error('Failed to load data');
+    } catch (err) {
+      const code = err?.code || err?.cause?.code;
+      if (!err?.response && (code === 'ERR_NETWORK' || code === 'ECONNREFUSED')) {
+        toast.error('Cannot reach the API — start the backend (npm run dev).');
+      } else {
+        toast.error(err?.response?.data?.message || 'Could not send reset email. Try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -50,96 +122,132 @@ function ForgotPassword() {
       await forgotPassword(sentTo);
       setCooldown(60);
       toast.success('If this email exists, a reset link has been sent.');
-    } catch {
-      toast.error('Failed to load data');
+    } catch (err) {
+      const code = err?.code || err?.cause?.code;
+      if (!err?.response && (code === 'ERR_NETWORK' || code === 'ECONNREFUSED')) {
+        toast.error('Cannot reach the API — start the backend (npm run dev).');
+      } else {
+        toast.error(err?.response?.data?.message || 'Could not resend — try again later.');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(20,184,166,0.24),transparent_32%),radial-gradient(circle_at_90%_5%,rgba(56,189,248,0.21),transparent_35%),linear-gradient(160deg,#020617_0%,#071a2c_48%,#020617_100%)]" />
+    <AuthSplitLayout variant="recovery">
+      <AuthFormSurface>
+        {!sent ? (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-400/90">
+              Account recovery
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+              Reset your password
+            </h2>
+            <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
+              We&apos;ll send a secure link to your registered email address.
+            </p>
 
-      <section className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.9fr]">
-          <div className="rounded-3xl border border-teal-300/20 bg-slate-900/65 p-8 shadow-glow backdrop-blur-xl sm:p-10">
-            <p className="inline-flex rounded-full border border-teal-300/30 bg-teal-400/10 px-3 py-1 text-xs font-semibold tracking-[0.2em] text-teal-100">CARECONNECT360</p>
-            <h1 className="mt-5 max-w-xl font-display text-4xl leading-tight text-white sm:text-5xl">Healthcare CRM and Automation</h1>
-            <p className="mt-5 max-w-2xl text-base text-slate-300 sm:text-lg">Securely manage users, patients, and care operations from one command center.</p>
-          </div>
-
-          <div className="glass-panel rounded-3xl border-teal-300/20 p-6 shadow-2xl sm:p-8">
-            {!sent ? (
-              <>
-                <h2 className="font-display text-3xl text-white">Reset Your Password</h2>
-                <p className="mt-2 text-sm text-slate-300">
-                  Enter your registered email address and we will send you a reset link.
-                </p>
-                <form className="mt-6 space-y-5" onSubmit={submit}>
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-semibold text-slate-200">Email Address</span>
-                    <input
-                      type="email"
-                      value={email}
-                      placeholder="Enter your registered email"
-                      onChange={(ev) => setEmail(ev.target.value)}
-                      onBlur={() => setEmailError(validateEmail(email))}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20"
-                    />
-                    {emailError ? <p className="mt-1 text-sm text-rose-300">{emailError}</p> : null}
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex w-full items-center justify-center rounded-xl bg-teal-500 px-4 py-3 font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-70"
+            <form className="mt-7 space-y-5" onSubmit={submit}>
+              <div>
+                <label
+                  className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400"
+                  htmlFor="forgot-email"
+                >
+                  Registered email
+                </label>
+                <div className="relative">
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    placeholder="you@clinic.com"
+                    onChange={(ev) => setEmail(ev.target.value)}
+                    onBlur={() => setEmailError(validateEmail(email))}
+                    className="w-full rounded-xl border border-slate-700/90 bg-slate-950/40 px-4 py-3 pr-11 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20"
+                  />
+                  <span
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    aria-hidden
                   >
-                    {submitting ? (
-                      <span className="inline-flex items-center gap-2">
-                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
-                        Sending…
-                      </span>
-                    ) : (
-                      'Send Reset Link'
-                    )}
-                  </button>
-                </form>
-                <div className="mt-6 text-center">
-                  <Link to="/login" className="text-sm text-teal-300 hover:text-teal-200">
-                    ← Back to Login
-                  </Link>
+                    <MailGlyph />
+                  </span>
                 </div>
-              </>
-            ) : (
-              <div className="text-center">
-                <p className="text-4xl" aria-hidden="true">
-                  📧
-                </p>
-                <h2 className="mt-4 font-display text-2xl text-white">Check your email</h2>
-                <p className="mt-3 text-sm leading-relaxed text-slate-300">
-                  If an account exists for <strong className="text-white">{sentTo}</strong>, a password reset link has been sent.
-                </p>
-                <p className="mt-2 text-sm text-slate-400">The link expires in 1 hour.</p>
-                <p className="mt-2 text-sm text-slate-500">Didn&apos;t receive it? Check your spam folder.</p>
-                <div className="mt-8 flex flex-col gap-3">
-                  <button
-                    type="button"
-                    disabled={cooldown > 0 || submitting}
-                    onClick={resend}
-                    className="w-full rounded-xl border border-teal-400/50 px-4 py-3 text-sm font-semibold text-teal-100 transition hover:bg-teal-500/10 disabled:opacity-50"
-                  >
-                    {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Email'}
-                  </button>
-                  <Link to="/login" className="text-sm text-teal-300 hover:text-teal-200">
-                    ← Back to Login
-                  </Link>
-                </div>
+                {emailError ? (
+                  <p className="mt-1.5 text-[13px] text-rose-300">{emailError}</p>
+                ) : null}
               </div>
-            )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--teal)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-600 disabled:opacity-60"
+              >
+                {submitting ? (
+                  <>
+                    <span
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                      aria-hidden
+                    />
+                    Sending…
+                  </>
+                ) : (
+                  <>
+                    <SendIcon />
+                    Send Reset Link
+                  </>
+                )}
+              </button>
+
+              <p className="flex items-center gap-1.5 text-[12px] text-slate-500">
+                <ClockIcon />
+                Link expires in 1 hour
+              </p>
+            </form>
+
+            <p className="mt-6 flex items-center gap-1.5 text-[13px] text-slate-500">
+              <ArrowLeftIcon />
+              <Link to="/login" className="font-medium text-teal-400 hover:text-teal-300">
+                Back to sign in
+              </Link>
+            </p>
+          </>
+        ) : (
+          <div className="text-center">
+            <CheckCircleGlyph />
+            <h2 className="mt-5 text-xl font-semibold text-white">Check your inbox</h2>
+            <p className="mt-3 text-[13px] leading-relaxed text-slate-400">
+              If an account exists for{' '}
+              <span className="font-medium text-slate-200">{sentTo}</span>, a password reset link
+              has been sent.
+            </p>
+            <p className="mt-2.5 flex items-center justify-center gap-1.5 text-[12px] text-slate-500">
+              <ClockIcon />
+              Link expires in 1 hour &middot; Check spam or promotions folders.
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3">
+              <button
+                type="button"
+                disabled={cooldown > 0 || submitting}
+                onClick={resend}
+                className="w-full rounded-xl border border-teal-500/35 bg-teal-500/[0.06] px-4 py-3 text-[13px] font-semibold text-teal-100 transition hover:bg-teal-500/10 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend email'}
+              </button>
+              <p className="flex items-center justify-center gap-1.5 text-[13px] text-slate-500">
+                <ArrowLeftIcon />
+                <Link to="/login" className="font-medium text-teal-400 hover:text-teal-300">
+                  Back to sign in
+                </Link>
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
-    </main>
+        )}
+      </AuthFormSurface>
+    </AuthSplitLayout>
   );
 }
 

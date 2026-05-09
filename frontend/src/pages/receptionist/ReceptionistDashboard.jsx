@@ -8,7 +8,7 @@ import { getReceptionistStats, getTodayQueue } from '../../api/receptionist.js';
 import BookAppointmentModal from '../../components/appointments/BookAppointmentModal.jsx';
 import CancelDialog from '../../components/appointments/CancelDialog.jsx';
 import AddPatientModal from '../../components/patients/AddPatientModal.jsx';
-import ReceptionistLayout from '../../components/receptionist/ReceptionistLayout.jsx';
+import ReceptionistLayout from '@/shared/layouts/ReceptionistLayout.jsx';
 import ReceptionistStatCards from '../../components/receptionist/ReceptionistStatCards.jsx';
 import TodayQueue from '../../components/receptionist/TodayQueue.jsx';
 import { formatDateInPakistan, todayISOInPakistan } from '../../utils/isoDate.js';

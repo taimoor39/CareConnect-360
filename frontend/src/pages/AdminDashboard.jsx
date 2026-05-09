@@ -16,9 +16,9 @@ import {
 } from 'recharts';
 import { toast } from 'react-toastify';
 
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
+import { getAuthMe } from '../api/auth.js';
 import {
-  getAuthMe,
   getDashboardAppointmentStats,
   getDashboardKpiStats,
   getDashboardPendingActions,

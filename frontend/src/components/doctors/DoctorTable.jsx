@@ -34,19 +34,20 @@ function DoctorTable({
 
   return (
     <article className="glass-panel overflow-hidden rounded-2xl">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
-        <h2 className="text-base font-semibold text-white">Doctors</h2>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <h2 className="shrink-0 text-lg font-semibold tracking-tight text-white">Doctors</h2>
+        <div className="flex min-w-0 w-full flex-col gap-2 sm:w-auto sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
           <input
+            type="search"
             value={filters.search}
             onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value, page: 1 }))}
             placeholder="Search doctor name"
-            className="h-9 rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20"
+            className="h-9 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 sm:min-w-[12rem] sm:max-w-[20rem] sm:flex-1 lg:max-w-xs lg:flex-none lg:w-56"
           />
           <select
             value={filters.status}
             onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value, page: 1 }))}
-            className="h-9 rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20"
+            className="h-9 w-full shrink-0 rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 sm:w-36"
           >
             <option value="">All Status</option>
             <option value="active">Active</option>
@@ -55,7 +56,7 @@ function DoctorTable({
           <select
             value={filters.specialization}
             onChange={(event) => setFilters((prev) => ({ ...prev, specialization: event.target.value, page: 1 }))}
-            className="h-9 rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20"
+            className="h-9 w-full min-w-0 shrink-0 rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 sm:min-w-[10rem] sm:max-w-[14rem] lg:w-48"
           >
             <option value="">All Specializations</option>
             {specializationOptions.map((value) => (
@@ -81,7 +82,15 @@ function DoctorTable({
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading doctors...</td></tr>
+              <tr>
+                <td colSpan={8} className="px-4 py-6">
+                  <div className="space-y-3 py-2">
+                    <div className="skeleton h-10 w-full" />
+                    <div className="skeleton h-10 w-full" />
+                    <div className="skeleton h-10 w-full max-w-md" />
+                  </div>
+                </td>
+              </tr>
             ) : doctors.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-slate-300">

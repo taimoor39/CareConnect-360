@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { archivePatient, createPatient, getPatientById, getPatients, getPatientStats, updatePatient } from '../api/patients.js';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import AddPatientModal from '../components/patients/AddPatientModal.jsx';
 import EditPatientModal from '../components/patients/EditPatientModal.jsx';
 import PatientDetailDrawer from '../components/patients/PatientDetailDrawer.jsx';

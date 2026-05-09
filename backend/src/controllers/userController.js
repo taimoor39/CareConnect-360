@@ -1,3 +1,5 @@
+import DoctorProfile from '../models/DoctorProfile.js';
+import { notifyAdmins } from '../realtime/adminRealtime.js';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
 
@@ -198,11 +200,17 @@ export const toggleUserStatus = asyncHandler(async (req, res) => {
     await Patient.findOneAndUpdate({ userId: user._id }, { status: user.isActive ? 'Active' : 'Inactive' });
   }
 
+  if (user.role === 'doctor') {
+    await DoctorProfile.findOneAndUpdate({ userId: user._id }, { $set: { isActive: user.isActive } });
+  }
+
   await auditFromReq(req, user.isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED', `User:${user._id}`, {
     fromIsActive,
     toIsActive: user.isActive,
     role: user.role,
   });
+
+  notifyAdmins({ scopes: ['dashboard'], reason: 'user_status_toggle' });
 
   const safe = await safeUser(user._id);
   res.json({ success: true, data: { user: safe } });
@@ -237,9 +245,15 @@ export const softDeleteUser = asyncHandler(async (req, res) => {
     await Patient.findOneAndUpdate({ userId: user._id }, { status: 'Inactive' });
   }
 
+  if (user.role === 'doctor') {
+    await DoctorProfile.findOneAndUpdate({ userId: user._id }, { $set: { isActive: false } });
+  }
+
   await auditFromReq(req, 'USER_SOFT_DELETED', `User:${user._id}`, {
     role: user.role,
   });
+
+  notifyAdmins({ scopes: ['dashboard'], reason: 'user_soft_deleted' });
 
   res.json({ success: true, data: { message: 'User deactivated successfully' } });
 });

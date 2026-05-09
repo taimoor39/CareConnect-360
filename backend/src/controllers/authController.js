@@ -145,6 +145,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   user.passwordResetToken = '';
   user.passwordResetExpiry = null;
   user.requirePasswordChange = false;
+  user.tokenVersion = Number(user.tokenVersion ?? 0) + 1;
   await user.save();
 
   await auditLogger({
@@ -176,6 +177,7 @@ export const changeRequiredPassword = asyncHandler(async (req, res) => {
   const { newPassword } = req.body;
   user.password = newPassword;
   user.requirePasswordChange = false;
+  user.tokenVersion = Number(user.tokenVersion ?? 0) + 1;
   await user.save();
 
   await auditLogger({
@@ -187,5 +189,20 @@ export const changeRequiredPassword = asyncHandler(async (req, res) => {
     req,
   });
 
-  res.json({ success: true, message: 'Password updated successfully' });
+  const fresh = await User.findById(user._id).lean();
+  const token = signToken(fresh, {
+    payload: {
+      id: fresh._id.toString(),
+      name: fresh.name,
+      email: fresh.email,
+      role: fresh.role,
+    },
+  });
+
+  res.json({
+    success: true,
+    message: 'Password updated successfully',
+    token,
+    user: buildUserResponse(fresh),
+  });
 });

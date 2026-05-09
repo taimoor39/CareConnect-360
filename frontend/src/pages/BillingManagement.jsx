@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import BillingFilters from '../components/billing/BillingFilters.jsx';
 import BillingStatCards from '../components/billing/BillingStatCards.jsx';
 import GenerateInvoiceModal from '../components/billing/GenerateInvoiceModal.jsx';
@@ -22,6 +22,7 @@ import {
   updateInvoice,
 } from '../api/billing.js';
 import { parseLocalDateFromISO, toISOInputValue, todayISOInPakistan } from '../utils/isoDate.js';
+import { adminRefreshMatchesScopes, subscribeAdminRealtime } from '../utils/adminRealtimeClient.js';
 
 const startOfMonth = () => {
   const d = parseLocalDateFromISO(todayISOInPakistan()) || new Date();
@@ -141,6 +142,17 @@ function BillingManagement() {
   const refreshAll = useCallback(async () => {
     await Promise.all([fetchInvoices(), fetchStats(), fetchSummary()]);
   }, [fetchInvoices, fetchStats, fetchSummary]);
+
+  const refreshAllRef = useRef(refreshAll);
+  refreshAllRef.current = refreshAll;
+
+  useEffect(() => {
+    return subscribeAdminRealtime((payload) => {
+      if (adminRefreshMatchesScopes(payload, ['billing'])) {
+        refreshAllRef.current().catch(() => {});
+      }
+    });
+  }, []);
 
   useEffect(() => {
     refreshAll().catch(() => toast.error('Failed to load invoices'));

@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import Patient from '../models/Patient.js';
 import PortalAccessRequest from '../models/PortalAccessRequest.js';
 import User from '../models/User.js';
+import { notifyAdmins } from '../realtime/adminRealtime.js';
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import auditLogger from '../utils/auditLogger.js';
@@ -112,6 +113,8 @@ export const createPortalAccessRequest = asyncHandler(async (req, res) => {
     req,
   });
 
+  notifyAdmins({ scopes: ['dashboard', 'portalBadge'], reason: 'portal_access_requested' });
+
   res.status(201).json({
     success: true,
     data: request,
@@ -188,6 +191,8 @@ export const approvePortalAccessRequest = asyncHandler(async (req, res) => {
     req,
   });
 
+  notifyAdmins({ scopes: ['dashboard', 'portalBadge'], reason: 'portal_access_approved' });
+
   res.json({
     success: true,
     message: `Portal account created for ${patient.name}. A welcome email with login instructions has been sent to ${request.requestedEmail}`,
@@ -234,6 +239,8 @@ export const rejectPortalAccessRequest = asyncHandler(async (req, res) => {
     req,
   });
 
+  notifyAdmins({ scopes: ['dashboard', 'portalBadge'], reason: 'portal_access_rejected' });
+
   res.json({
     success: true,
     message: 'Portal access request rejected',
@@ -270,6 +277,8 @@ export const updatePortalAccessRequestedEmail = asyncHandler(async (req, res) =>
     },
     req,
   });
+
+  notifyAdmins({ scopes: ['portalBadge'], reason: 'portal_email_updated' });
 
   res.json({
     success: true,
@@ -331,6 +340,8 @@ export const reopenPortalAccessRequest = asyncHandler(async (req, res) => {
     },
     req,
   });
+
+  notifyAdmins({ scopes: ['dashboard', 'portalBadge'], reason: 'portal_access_reopened' });
 
   res.json({
     success: true,

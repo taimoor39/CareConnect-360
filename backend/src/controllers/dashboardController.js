@@ -138,12 +138,18 @@ export const getRevenueChart = asyncHandler(async (req, res) => {
   res.json({ success: true, data: payload });
 });
 
-export const getAppointmentStats = asyncHandler(async (_req, res) => {
+export const getAppointmentStats = asyncHandler(async (req, res) => {
+  const scope = String(req.query.scope || 'today').toLowerCase();
+  const { start: todayStart, end: todayEnd } = startEndOfToday();
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  const dateMatch = scope === 'month'
+    ? { $gte: startOfMonth }
+    : { $gte: todayStart, $lte: todayEnd };
+
   const breakdown = await Appointment.aggregate([
-    { $match: { date: { $gte: startOfMonth } } },
+    { $match: { date: dateMatch } },
     { $group: { _id: '$status', count: { $sum: 1 } } },
   ]);
 

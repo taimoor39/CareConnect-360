@@ -12,7 +12,7 @@ import {
   updateAppointmentStatus,
 } from '../api/appointments.js';
 import { getDoctors } from '../api/doctors.js';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import AppointmentDetailDrawer from '../components/appointments/AppointmentDetailDrawer.jsx';
 import AppointmentFilters from '../components/appointments/AppointmentFilters.jsx';
 import AppointmentStatCards from '../components/appointments/AppointmentStatCards.jsx';

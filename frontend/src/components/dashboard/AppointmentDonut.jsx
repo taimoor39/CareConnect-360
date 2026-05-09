@@ -16,7 +16,7 @@ function AppointmentDonut({ data }) {
   return (
     <div className="glass-panel rounded-2xl p-5">
       <h3 className="text-base font-semibold text-white">Appointments</h3>
-      <p className="text-xs text-slate-400">This month by status</p>
+      <p className="text-xs text-slate-400">Today by status</p>
       {failed ? (
         <div className="flex h-[260px] items-center justify-center text-sm text-slate-400">Chart data unavailable</div>
       ) : (

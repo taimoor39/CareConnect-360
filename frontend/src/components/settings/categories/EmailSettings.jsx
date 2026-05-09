@@ -1,3 +1,5 @@
+import { PasswordInput } from '@/shared/components/PasswordField.jsx';
+
 import SettingsField from '../shared/SettingsField.jsx';
 import SettingsSection from '../shared/SettingsSection.jsx';
 import EmailTemplates from './EmailTemplates.jsx';
@@ -26,12 +28,13 @@ function EmailSettings({
         <SettingsField label="SMTP Port" error={errors.smtpPort}><input type="number" value={data.smtpPort || 587} onChange={(e) => onChange({ ...data, smtpPort: Number(e.target.value || 0) })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
         <SettingsField label="SMTP Username" error={errors.smtpUser}><input value={data.smtpUser || ''} onChange={(e) => onChange({ ...data, smtpUser: e.target.value })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
         <SettingsField label="SMTP Password" error={errors.smtpPass}>
-          <input
-            type="password"
+          <PasswordInput
+            autoComplete="new-password"
             value={data.smtpPass || ''}
             onChange={(e) => onChange({ ...data, smtpPass: e.target.value })}
             placeholder={data.smtpPassConfigured ? 'Saved (leave blank to keep existing)' : 'Enter SMTP password'}
-            className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm"
+            size="compact"
+            inputClassName="bg-slate-900/80"
           />
         </SettingsField>
         <SettingsField label="Encryption"><select value={data.smtpEncryption || 'tls'} onChange={(e) => onChange({ ...data, smtpEncryption: e.target.value })} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm"><option value="none">None</option><option value="ssl">SSL</option><option value="tls">TLS</option></select></SettingsField>

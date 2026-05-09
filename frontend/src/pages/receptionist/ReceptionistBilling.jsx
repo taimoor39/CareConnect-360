@@ -6,7 +6,7 @@ import GenerateInvoiceModal from '../../components/billing/GenerateInvoiceModal.
 import InvoiceDetailDrawer from '../../components/billing/InvoiceDetailDrawer.jsx';
 import InvoiceTable from '../../components/billing/InvoiceTable.jsx';
 import RecordPaymentModal from '../../components/billing/RecordPaymentModal.jsx';
-import ReceptionistLayout from '../../components/receptionist/ReceptionistLayout.jsx';
+import ReceptionistLayout from '@/shared/layouts/ReceptionistLayout.jsx';
 import { firstOfMonthISOInPakistan, todayISOInPakistan } from '../../utils/isoDate.js';
 
 const defaultInvoiceForm = {

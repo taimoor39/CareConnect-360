@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import { getDoctorPatientDetail, getDoctorPatients, getDoctorSchedule } from '../../api/doctor.js';
 import DoctorConsultationModal from '../../components/doctor/DoctorConsultationModal.jsx';
 import DoctorPatientDrawer from '../../components/doctor/DoctorPatientDrawer.jsx';
-import DoctorLayout from '../../components/doctor/DoctorLayout.jsx';
+import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
 import { getAuthUser } from '../../utils/authUser.js';
 import { formatDateInPakistan } from '../../utils/isoDate.js';
 

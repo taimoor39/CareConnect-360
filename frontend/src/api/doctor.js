@@ -1,5 +1,10 @@
 import axiosInstance from './client.js';
 
+export const getDoctorProfile = () => axiosInstance.get('/doctor/profile');
+
+export const updateDoctorProfile = (data) =>
+  axiosInstance.put('/doctor/profile', data);
+
 export const getDoctorDashboardStats = () =>
   axiosInstance.get('/doctor/dashboard-stats');
 

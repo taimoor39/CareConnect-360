@@ -12,9 +12,9 @@ function SettingsNav({ categories, activeCategory, onSelect, isCategoryDirty }) 
             activeCategory === item.key ? 'bg-teal-400/20 text-teal-100 ring-1 ring-teal-300/30' : 'text-slate-300 hover:bg-slate-800/70'
           }`}
         >
-          <span className="flex items-center gap-2">
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span className="flex shrink-0 items-center justify-center text-current [&_svg]:block">{item.icon}</span>
+            <span className="truncate">{item.label}</span>
           </span>
           <UnsavedBadge show={isCategoryDirty(item.key)} />
         </button>

@@ -1,64 +1,69 @@
 # CareConnect 360 — Healthcare CRM & Automation Platform
 
-Full-stack MERN application for clinic operations management featuring multi-role dashboards, appointment scheduling, billing, AI-powered medical report summarization, and an automated patient engagement engine.
+Full-stack MERN application for clinic operations management featuring multi-role dashboards, appointment scheduling, billing, AI-powered medical report summarization, patient portal access workflows, and an automated patient engagement engine.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 19, Vite, Tailwind CSS, Recharts, React Router 7 |
-| Backend | Node.js, Express 4, Mongoose 8 (MongoDB) |
-| Auth | JWT (access tokens), bcrypt password hashing |
+| Frontend | React 19, Vite 6, Tailwind CSS, Recharts, React Router 7, Socket.IO client |
+| Backend | Node.js, Express 4, Mongoose 8 (MongoDB), Socket.IO |
+| Auth | JWT (access tokens, optional `tv` token-version claim), bcrypt password hashing |
 | Email | Nodemailer with admin-configurable SMTP |
 | Scheduling | node-cron (timezone-aware, Asia/Karachi) |
-| AI Service | External microservice (Facebook BART) for report summarization |
+| Real-time | Socket.IO on the same HTTP server (`/socket.io`), admin-only push hints |
+| AI Service | FastAPI microservice; Hugging Face `facebook/bart-large-cnn` summarization (with text fallback) |
 | PDF | PDFKit (server-side invoice generation), jsPDF (client-side export) |
-| QR Codes | qrcode (server), html5-qrcode (client scanner) |
+| QR Codes | qrcode + jsQR (server decode), html5-qrcode (camera scanner), optional upload flow |
 
 ## Architecture
 
 ```
-project/
+CareConnect360/
 ├── backend/          Express API (ES modules)
 │   ├── src/
-│   │   ├── config/         DB connection, seeders config
-│   │   ├── controllers/    Route handlers (18 controllers)
+│   │   ├── config/         DB connection
+│   │   ├── controllers/    Route handlers (19 controllers)
 │   │   ├── jobs/           Cron job definitions
-│   │   ├── middleware/      Auth, validation, security (Helmet, CORS, rate limiting)
-│   │   ├── models/         Mongoose schemas (14 models)
-│   │   ├── routes/         Express routers (18 route files)
-│   │   ├── seeders/        Admin & menu seeder
-│   │   ├── utils/          Shared helpers (audit, email, dates, PDF, queries)
+│   │   ├── middleware/     Auth, validation, security (Helmet, CORS, rate limiting)
+│   │   ├── models/         Mongoose schemas (16 models)
+│   │   ├── realtime/       Socket.IO admin channel (`adminRealtime.js`)
+│   │   ├── routes/         Express routers (19 route modules)
+│   │   ├── seeders/        Default admin bootstrap (`admin.defaults.json` + runner)
+│   │   ├── utils/          Shared helpers (audit, email, dates, PDF, queries, JWT)
 │   │   ├── validators/     express-validator rule sets
-│   │   └── server.js       App entry point
+│   │   └── server.js       App entry (HTTP + Socket.IO)
 │   └── package.json
 ├── frontend/         React SPA
 │   ├── src/
 │   │   ├── api/            Axios API client modules
-│   │   ├── components/     Reusable UI (dashboard, patients, doctors, settings, etc.)
+│   │   ├── components/     Reusable UI (dashboard, patients, doctors, receptionist, etc.)
 │   │   ├── hooks/          Custom React hooks
-│   │   ├── pages/          Route-level pages (33 pages across 4 portals)
-│   │   └── utils/          Date, formatting, ISO helpers
+│   │   ├── pages/          Route-level pages (33 JSX pages across portals)
+│   │   └── utils/          Dates, formatting, ISO helpers, admin realtime client
 │   └── package.json
-└── package.json      Monorepo root (npm workspaces + concurrently)
+├── ai-service/       Python FastAPI service (summarize, health, medical terms)
+├── scripts/          Root helper scripts (e.g. health-check)
+└── package.json      Monorepo root (npm workspaces: frontend + backend; AI via script)
 ```
 
 ## Role-Based Portals
 
 ### Admin
-- Dashboard with clinic-wide KPIs and analytics charts
+- Dashboard with clinic-wide KPIs and analytics charts (poll/focus refresh plus push hints)
 - Patient management (CRUD, search, archive, patient-code generation)
-- Doctor management (profiles, schedules, specializations)
+- Doctor management (profiles, schedules, specializations, active status)
 - Appointment management (scheduling, status workflow, QR check-in)
 - Billing & invoicing (PDF generation, payment tracking)
 - User management (create/edit, role assignment, password reset, temporary passwords)
+- Patient portal access requests (approve/reject/reopen; stats drive sidebar badges)
 - Audit logs (filterable, paginated activity trail)
 - System settings (SMTP, security, cron schedules, clinic info, AI service, medical terms, email templates)
 - Analytics dashboard (patient trends, appointment stats, revenue)
 
 ### Doctor
 - Personal dashboard (today/week schedule, pending summaries)
-- Patient list (scoped to doctor's own patients)
+- Patient list (scoped to assigned patients)
 - Consultations (create, edit, follow-up dates, draft mode)
 - Prescriptions (multi-item with dosage, frequency, duration)
 - Medical reports (upload PDF/text, AI summarization, approve/reject/edit summaries)
@@ -68,7 +73,7 @@ project/
 - Dashboard (daily appointment overview)
 - Patient registration and lookup
 - Appointment scheduling
-- QR code check-in scanning
+- QR code check-in (camera scanner and image upload where supported)
 - Billing and payment collection
 
 ### Patient
@@ -77,7 +82,16 @@ project/
 - Access prescriptions
 - View approved AI report summaries
 - Download invoices
-- Profile management
+- Profile management (portal access subject to admin approval workflow)
+
+## Admin real-time updates (Socket.IO)
+
+Connected **admin** browsers receive `admin:refresh` events after relevant mutations (dashboard KPIs, billing aggregates, portal-access badge counts). The shared client strips `/api` from `VITE_API_URL` / `VITE_API_BASE_URL` and opens Socket.IO against the API origin on path `/socket.io`.
+
+- Handshake auth: JWT in `socket.handshake.auth.token` (or `query.token`); user must be active admin with matching token version (`tv` claim).
+- Payload shape (typical): `{ ts, scopes?: ('dashboard'|'portalBadge'|'billing')[], reason?: string }`. Empty `scopes` is treated as a broadcast hint.
+
+**Staging/production:** reverse proxies and CDNs must allow **WebSocket upgrades** (and sticky sessions if you scale HTTP) for `/socket.io`.
 
 ## Patient Engagement Engine (FR48–FR52)
 
@@ -104,7 +118,7 @@ Features:
 
 | Model | Purpose |
 |---|---|
-| User | Authentication, roles (admin/doctor/receptionist/patient) |
+| User | Authentication, roles (admin/doctor/receptionist/patient), token versioning |
 | Patient | Demographics, medical history, insurance, emergency contact |
 | DoctorProfile | Schedule, specialization, qualification |
 | Appointment | Date/time slots, status workflow, QR codes |
@@ -113,6 +127,7 @@ Features:
 | MedicalReport | PDF/text uploads for AI processing |
 | ReportSummary | AI-generated summaries with approval workflow |
 | Invoice | Line items, tax, payment status, PDF generation |
+| PortalAccessRequest | Patient portal onboarding requests (pending/approved/rejected) |
 | EngagementLog | Engagement email audit trail (rule, status, errors) |
 | AuditLog | System-wide activity log with IP/user-agent tracking |
 | SystemSettings | Singleton config (SMTP, security, clinic, cron, AI, templates) |
@@ -132,6 +147,7 @@ Features:
 | `/api/doctor` | Doctor portal (consultations, prescriptions, reports, AI summaries) |
 | `/api/patient` | Patient portal (appointments, prescriptions, reports, invoices) |
 | `/api/receptionist` | Receptionist workflows |
+| `/api/portal-access` | Portal access requests and admin stats |
 | `/api/dashboard` | Role-aware dashboard stats |
 | `/api/analytics` | Charts and trend data |
 | `/api/engagement` | Engagement logs, stats, test emails |
@@ -142,25 +158,26 @@ Features:
 | `/api/menus` | Dynamic menu configuration |
 | `/api/seeders` | Database seeding |
 
+Socket.IO is mounted on the **same origin/port as the API** (not under `/api`).
+
 ## Setup
 
 ### Prerequisites
 
 - Node.js 18+
 - MongoDB 6+ (local or Atlas)
+- Python 3.10+ with a virtualenv under `ai-service/venv` (for local AI service)
 - Gmail App Password (for SMTP) or other SMTP provider
 
 ### Installation
 
 ```bash
-# Clone and install all workspaces
-git clone <repo-url> && cd careconnect-360
+git clone <repo-url>
+cd CareConnect360
 npm install
 ```
 
-### Environment
-
-Copy `backend/.env.example` to `backend/.env` and configure:
+Create **`backend/.env`** (there is no committed template in-repo). Minimum:
 
 ```env
 PORT=8000
@@ -169,6 +186,12 @@ JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=http://localhost:5173
 SYSTEM_USER_ID=           # Optional: MongoDB ObjectId for system audit entries
+```
+
+Frontend (`frontend/.env` or `.env.local`):
+
+```env
+VITE_API_URL=http://localhost:8000/api
 ```
 
 SMTP is configured at runtime through the admin Settings panel (not `.env`).
@@ -199,44 +222,47 @@ Notes:
 
 ### Run AI Microservice (Port 8001)
 
-This project includes the AI microservice in `ai-service/` (FastAPI).
+The service lives in `ai-service/` (FastAPI). From the repo root on Windows, **`npm run dev`** already starts it alongside backend and frontend if `ai-service\venv` exists.
 
-Windows PowerShell:
+Manual run (from `ai-service/`):
 
 ```powershell
-cd c:\project\ai-service
-.\venv\Scripts\Activate
-uvicorn main:app --reload --port 8001
+cd CareConnect360\ai-service
+.\venv\Scripts\Activate.ps1
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
+
 Quick health check:
+
 ```powershell
 curl http://localhost:8001/api/health
 ```
 
 ### Seed Data
 
-The backend reads seeder defaults from `backend/src/config/seeders.json`.
-
-Current seeded admin credentials:
+Default admin credentials live in **`backend/src/seeders/admin.defaults.json`** (single source of truth).
 
 - Email: `admin@example.com`
 - Password: `abc123456`
 
-To run seeders:
+**First-time bootstrap (recommended):** creates the admin if missing and verifies the password hash:
 
-1. Start backend (`npm run dev` at project root, or backend workspace directly).
-2. Login as an existing admin.
-3. Call `POST /api/seeders/run`.
+```bash
+npm run seed:admin --workspace backend
+```
+
+**While logged in as admin:** `POST /api/seeders/run` runs the same admin seed (idempotent: skips if that email already exists).
 
 ### Run
 
 ```bash
-# Both services (backend :8000, frontend :5173)
+# Backend (:8000), frontend (:5173), and AI (:8001) together
 npm run dev
 
 # Or individually
 npm run dev:backend
 npm run dev:frontend
+npm run dev:ai
 ```
 
 ### Login Troubleshooting (Local Development)
@@ -244,30 +270,33 @@ npm run dev:frontend
 If login shows **"Too many login attempts — please try again later"** during local testing:
 
 - Make sure backend is running with latest code (restart dev server).
-- In non-production, auth limiter now skips localhost requests.
-- Use seeded credentials from `backend/src/config/seeders.json`:
+- In non-production, auth limiter skips localhost requests.
+- Use seeded credentials from `backend/src/seeders/admin.defaults.json`:
   - `admin@example.com / abc123456`
 - Confirm MongoDB points to the same DB where seeded user exists (`backend/.env` `MONGODB_URI`).
 
 ### Production Build
 
 ```bash
-cd frontend && npm run build   # outputs to frontend/dist
-cd backend && npm start        # runs without nodemon
+npm run build --workspace frontend   # outputs to frontend/dist
+npm start --workspace backend        # runs without nodemon
 ```
+
+Serve static `frontend/dist` from your host or CDN; point `FRONTEND_URL` and CORS `allowedOrigins` at the deployed SPA origin. Ensure WebSockets to `/socket.io` work if you rely on admin push updates.
 
 ## Security
 
 - Helmet security headers on every response
 - Global rate limiting (configurable per-IP)
 - Patient portal additional rate limit (100 req / 15 min)
-- JWT authentication with configurable expiry
+- JWT authentication with configurable expiry and optional invalidation via token version
 - Password policy enforcement (min length, uppercase, numbers)
 - bcrypt password hashing (auto-salt)
 - CORS origin whitelist
 - Input validation on all endpoints (express-validator)
 - Audit logging with IP address and user-agent tracking
 - SMTP password never returned to frontend (masked on read)
+- Admin Socket.IO connections rejected unless JWT verifies an active admin with matching `tv`
 
 ## License
 

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import AppointmentDonut from '../components/dashboard/AppointmentDonut.jsx';
 import KPIStatCards from '../components/dashboard/KPIStatCards.jsx';
 import PendingAlerts from '../components/dashboard/PendingAlerts.jsx';
@@ -22,6 +22,7 @@ import {
   getTodaysSchedule,
 } from '../api/dashboard.js';
 import { formatDateInPakistan } from '../utils/isoDate.js';
+import { adminRefreshMatchesScopes, subscribeAdminRealtime } from '../utils/adminRealtimeClient.js';
 
 const getGreeting = (name) => {
   const hour = new Date().getHours();
@@ -60,8 +61,8 @@ function Dashboard() {
     }
   }, []);
 
-  const fetchDashboard = async () => {
-    if (!loading) setLoading(true);
+  const fetchDashboard = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const results = await Promise.allSettled([
         getDashboardKPI(),
@@ -82,7 +83,7 @@ function Dashboard() {
       setRevenueChart(valueOrNull(1, (r) => r.data?.data?.chartData ?? []));
       setApptStats(valueOrNull(2, (r) => r.data?.data ?? null));
       setTodaySchedule(valueOrNull(3, (r) => r.data?.data ?? []));
-      setRecentPatients(valueOrNull(4, (r) => r.data?.data ?? []));
+      setRecentPatients(valueOrNull(4, (r) => r.data?.data ?? {}));
       setSystemHealth(valueOrNull(5, (r) => r.data?.data ?? null));
       setRecentActivity(valueOrNull(6, (r) => r.data?.data ?? []));
       setPendingActions(valueOrNull(7, (r) => r.data?.data ?? {}));
@@ -95,24 +96,50 @@ function Dashboard() {
     } catch (err) {
       toast.error('Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [chartPeriod]);
 
-  useEffect(() => { fetchDashboard(); }, []);
+  const fetchDashboardRef = useRef(fetchDashboard);
+  fetchDashboardRef.current = fetchDashboard;
 
   useEffect(() => {
-    const interval = setInterval(fetchDashboard, 60000);
-    return () => clearInterval(interval);
+    return subscribeAdminRealtime((payload) => {
+      if (adminRefreshMatchesScopes(payload, ['dashboard'])) {
+        fetchDashboardRef.current({ silent: true });
+      }
+    });
   }, []);
 
   useEffect(() => {
-    if (!loading) {
-      getRevenueChart(chartPeriod)
-        .then((res) => setRevenueChart(res.data.data.chartData))
-        .catch(() => setRevenueChart(null));
-    }
-  }, [chartPeriod]);
+    fetchDashboard({ silent: false });
+  }, [fetchDashboard]);
+
+  useEffect(() => {
+    const POLL_MS = 30000;
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchDashboard({ silent: true });
+      }
+    }, POLL_MS);
+    return () => clearInterval(interval);
+  }, [fetchDashboard]);
+
+  useEffect(() => {
+    let debounce;
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      clearTimeout(debounce);
+      debounce = setTimeout(() => fetchDashboard({ silent: true }), 350);
+    };
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    window.addEventListener('focus', refreshIfVisible);
+    return () => {
+      clearTimeout(debounce);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.removeEventListener('focus', refreshIfVisible);
+    };
+  }, [fetchDashboard]);
 
   useEffect(() => {
     if (!lastUpdated) return;

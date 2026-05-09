@@ -110,23 +110,19 @@ function BookAppointmentModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-4xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+    <div className="care-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="care-modal-panel care-modal-panel--xl" onClick={(e) => e.stopPropagation()}>
+        <header className="care-modal-header">
           <div>
-            <h3 className="text-lg font-semibold text-white">Book New Appointment</h3>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-400">Patient, Schedule and Confirmation</p>
+            <h2 className="care-modal-title">Book new appointment</h2>
+            <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-muted)]">Patient, schedule and confirmation</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800"
-          >
-            Close
+          <button type="button" className="care-modal-close" onClick={onClose} aria-label="Close">
+            ×
           </button>
-        </div>
+        </header>
 
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+        <div className="care-modal-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3.5">
             <PatientSearchDropdown
@@ -220,8 +216,8 @@ function BookAppointmentModal({
           <p className="text-[11px] text-slate-500">{bookForm.notes.length}/500</p>
         </div>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-800 px-5 py-4">
-          <p className="text-xs text-slate-400">Step 3 of 3</p>
+        <footer className="care-modal-footer care-modal-footer--between">
+          <p className="text-xs text-[var(--text-muted)]">Step 3 of 3</p>
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
             <button
@@ -230,10 +226,10 @@ function BookAppointmentModal({
               disabled={!bookForm.selectedPatient || !bookForm.selectedDoctor || !bookForm.selectedDate || !bookForm.selectedSlot || saving}
               className="h-9 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50"
             >
-              {saving ? 'Booking...' : 'Book Appointment →'}
+              {saving ? 'Booking…' : 'Book appointment →'}
             </button>
           </div>
-        </div>
+        </footer>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useBlocker } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { getAuditLogs } from '../api/audit.js';
@@ -21,6 +22,15 @@ import {
   uploadClinicLogo,
 } from '../api/settings.js';
 import SettingsNav from '../components/settings/SettingsNav.jsx';
+import {
+  IconAIService,
+  IconChangePassword,
+  IconClinic,
+  IconCronJobs,
+  IconEmail,
+  IconGeneralSecurity,
+  IconMedicalTerms,
+} from '../components/settings/SettingsNavIcons.jsx';
 import AIServiceSettings from '../components/settings/categories/AIServiceSettings.jsx';
 import ChangePasswordSettings from '../components/settings/categories/ChangePasswordSettings.jsx';
 import ClinicSettings from '../components/settings/categories/ClinicSettings.jsx';
@@ -28,17 +38,17 @@ import CronJobSettings from '../components/settings/categories/CronJobSettings.j
 import EmailSettings from '../components/settings/categories/EmailSettings.jsx';
 import GeneralSettings from '../components/settings/categories/GeneralSettings.jsx';
 import MedicalTermsSettings from '../components/settings/categories/MedicalTermsSettings.jsx';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import { parseLocalDateFromISO, toISOInputValue, todayISOInPakistan } from '../utils/isoDate.js';
 
 const CATEGORIES = [
-  { key: 'general', icon: '🔐', label: 'General & Security' },
-  { key: 'email', icon: '📧', label: 'Email Configuration' },
-  { key: 'cronJobs', icon: '⏰', label: 'Scheduled Jobs' },
-  { key: 'clinic', icon: '🏥', label: 'Clinic Information' },
-  { key: 'aiService', icon: '🤖', label: 'AI Service' },
-  { key: 'medicalTerms', icon: '📋', label: 'Medical Terms' },
-  { key: 'password', icon: '🔑', label: 'Change Password' },
+  { key: 'general', icon: <IconGeneralSecurity />, label: 'General & Security' },
+  { key: 'email', icon: <IconEmail />, label: 'Email Configuration' },
+  { key: 'cronJobs', icon: <IconCronJobs />, label: 'Scheduled Jobs' },
+  { key: 'clinic', icon: <IconClinic />, label: 'Clinic Information' },
+  { key: 'aiService', icon: <IconAIService />, label: 'AI Service' },
+  { key: 'medicalTerms', icon: <IconMedicalTerms />, label: 'Medical Terms' },
+  { key: 'password', icon: <IconChangePassword />, label: 'Change Password' },
 ];
 
 const DEFAULT_SETTINGS = {
@@ -131,6 +141,23 @@ function Settings() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [anyDirty]);
+
+  const blocker = useBlocker(
+    useCallback(
+      ({ currentLocation, nextLocation }) =>
+        anyDirty &&
+        (currentLocation.pathname !== nextLocation.pathname ||
+          currentLocation.search !== nextLocation.search),
+      [anyDirty],
+    ),
+  );
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return;
+    const ok = window.confirm('You have unsaved changes. Leave without saving?');
+    if (ok) blocker.proceed();
+    else blocker.reset();
+  }, [blocker]);
 
   const setCategory = (category, nextData) => {
     setFormStates((prev) => ({ ...prev, [category]: { ...prev[category], data: nextData } }));

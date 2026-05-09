@@ -1,4 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #070d1a;
+  --bg-secondary: #0d1525;
+  --bg-card: #111e30;
+  --bg-hover: rgba(255, 255, 255, 0.03);
+  --border: rgba(148, 163, 184, 0.08);
+  --border-focus: rgba(13, 148, 136, 0.3);
+  --teal: #0d9488;
+  --teal-light: #14b8a8;
+  --teal-muted: rgba(13, 148, 136, 0.12);
+  --text-primary: #f0f4ff;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --green: #16a34a;
+  --amber: #d97706;
+  --red: #dc2626;
+  --blue: #2563eb;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-card:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.6);
+  --modal-card-border: rgba(255, 255, 255, 0.08);
+  --modal-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
 
 @tailwind base;
 @tailwind components;
@@ -9,45 +38,89 @@
     font-size: clamp(14px, 0.2vw + 13px, 17px);
   }
 
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
   body {
-    @apply m-0 min-h-screen bg-slate-950 text-slate-100 antialiased font-sans;
+    @apply m-0 min-h-screen antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
   }
 
-  * {
-    @apply box-border;
-  }
-
-  /* Theme-aligned scrollbar styling */
+  /* Slim scrollbars (enterprise SaaS) */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(20, 184, 166, 0.55) rgba(15, 23, 42, 0.55);
+    scrollbar-color: rgba(13, 148, 136, 0.35) transparent;
   }
 
-  *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
   }
 
-  *::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.55);
-    border-radius: 999px;
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 
-  *::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(56, 189, 248, 0.75), rgba(20, 184, 166, 0.75));
-    border-radius: 999px;
-    border: 2px solid rgba(15, 23, 42, 0.65);
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
   }
 
-  *::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, rgba(103, 232, 249, 0.9), rgba(45, 212, 191, 0.9));
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(13, 148, 136, 0.45);
   }
 
-  *::-webkit-scrollbar-button {
-    display: none;
-    width: 0;
-    height: 0;
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 100px var(--bg-secondary) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    caret-color: var(--text-primary);
   }
+
+  /* Step 8 — form controls (portals; Tailwind utilities still override when applied) */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--text-primary);
+    width: 100%;
+    outline: none;
+    font-family: inherit;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+  }
+
+  input:not([type='checkbox']):not([type='radio'])::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
+    font-weight: 300;
+  }
+}
+
+.app-scrollbar-minimal {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 148, 136, 0.35) transparent;
 }
 
 @layer components {
@@ -56,18 +129,349 @@
   }
 
   .skeleton {
-    background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 25%,
+      rgba(255, 255, 255, 0.07) 50%,
+      rgba(255, 255, 255, 0.03) 75%
+    );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Step 9 — centered modals */
+  .care-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-overlay-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    padding: 16px;
+  }
+
+  .care-modal-overlay--top {
+    align-items: flex-start;
+    padding-top: 40px;
+    overflow-y: auto;
+  }
+
+  .care-modal-dialog {
+    background: var(--bg-card);
+    border: 1px solid var(--modal-card-border);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-shadow: var(--modal-shadow);
+    animation: fadeUp 0.2s ease;
+  }
+
+  .care-modal-dialog--wide {
+    max-width: 680px;
+  }
+
+  .care-modal-dialog--3xl {
+    max-width: min(768px, calc(100vw - 32px));
+  }
+
+  .care-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .care-modal-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+    min-width: 0;
+  }
+
+  .care-modal-close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      color 0.15s,
+      background 0.15s;
+  }
+
+  .care-modal-close:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .care-modal-body {
+    padding: 24px;
+  }
+
+  .care-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .care-modal-footer--between {
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Large modals: shared shell without CareModal title wrapper */
+  .care-modal-panel {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--modal-card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--modal-shadow);
+    animation: fadeUp 0.2s ease;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .care-modal-panel--xl {
+    max-width: min(896px, calc(100vw - 32px));
+    max-height: 90vh;
+  }
+
+  .care-modal-panel--wide {
+    max-width: min(680px, calc(100vw - 32px));
+    max-height: 90vh;
+  }
+
+  .care-modal-panel--2xl {
+    max-width: min(1152px, calc(100vw - 32px));
+    height: 94vh;
+    max-height: 94vh;
   }
 
   .app-scrollbar {
     scrollbar-gutter: stable;
   }
+
+  /* QR scanner: tame the default html5-qrcode UI so the camera feed
+     blends with our themed frame. We keep the live <video> visible but
+     hide the library's permission button, file-scan link and section
+     headers — we render our own. */
+  .qr-reader-frame video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+    border-radius: 0.75rem;
+  }
+  .qr-reader-frame img[alt='Info icon'],
+  .qr-reader-frame button[id*='html5-qrcode-button'],
+  .qr-reader-frame a[id*='html5-qrcode-anchor-scan-type-change'],
+  .qr-reader-frame select,
+  .qr-reader-frame #qr-reader__dashboard,
+  .qr-reader-frame #qr-reader__dashboard_section,
+  .qr-reader-frame #qr-reader__dashboard_section_csr,
+  .qr-reader-frame #qr-reader__dashboard_section_swaplink,
+  .qr-reader-frame #qr-reader__camera_selection,
+  .qr-reader-frame #qr-reader__filescan_input,
+  .qr-reader-frame #qr-reader__status_span {
+    display: none !important;
+  }
+  .qr-reader-frame #qr-reader__scan_region {
+    background: transparent !important;
+    min-height: 0 !important;
+  }
+  .qr-reader-frame #qr-reader__scan_region img {
+    display: none !important;
+  }
+
+  .qr-scan-line {
+    animation: qr-scan-sweep 2s ease-in-out infinite;
+  }
+
+  /* Step 7 — tables */
+  .care-table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .care-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .care-table thead tr {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .care-table th {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+
+  .care-table td {
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.1s;
+  }
+
+  .care-table tbody tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .care-btn-view {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    color: #60a5fa;
+    background: rgba(37, 99, 235, 0.08);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .care-btn-view:hover {
+    background: rgba(37, 99, 235, 0.14);
+  }
+
+  .care-btn-edit {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid rgba(217, 119, 6, 0.3);
+    color: #fbbf24;
+    background: rgba(217, 119, 6, 0.08);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .care-btn-edit:hover {
+    background: rgba(217, 119, 6, 0.14);
+  }
+
+  .care-btn-delete {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid rgba(220, 38, 38, 0.3);
+    color: #f87171;
+    background: rgba(220, 38, 38, 0.08);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .care-btn-delete:hover {
+    background: rgba(220, 38, 38, 0.14);
+  }
+
+  .care-btn-primary-sm {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid rgba(13, 148, 136, 0.3);
+    color: #2dd4bf;
+    background: rgba(13, 148, 136, 0.08);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .care-btn-primary-sm:hover {
+    background: rgba(13, 148, 136, 0.14);
+  }
+
+  /* Step 8 — labels + primary CTA */
+  .care-field-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .care-btn-primary {
+    background: var(--teal);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 13px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(13, 148, 136, 0.25);
+    transition: all 0.15s;
+  }
+
+  .care-btn-primary:hover:not(:disabled) {
+    background: var(--teal-light);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(13, 148, 136, 0.35);
+  }
+
+  .care-btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes qr-scan-sweep {
+  0% { transform: translateY(0); opacity: 0.85; }
+  50% { transform: translateY(13rem); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.85; }
 }

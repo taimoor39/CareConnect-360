@@ -1,3 +1,5 @@
+import { body } from 'express-validator';
+
 import {
   booleanRule,
   emailRule,
@@ -42,4 +44,23 @@ export const updateDoctorValidator = [
 export const scheduleValidator = [
   mongoIdParam(DOCTOR_ID.field, DOCTOR_ID.label),
   ...scheduleRules('', { optional: false }),
+];
+
+/** Doctor portal self-service profile (phone + bio only). */
+export const updateDoctorProfileValidator = [
+  body('phone')
+    .optional()
+    .trim()
+    .matches(/^[0-9]{10,15}$/)
+    .withMessage('Phone must be 10-15 digits only'),
+  body('bio')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Bio cannot exceed 500 characters'),
+  body('name').not().exists().withMessage('Name cannot be changed from profile. Contact admin.'),
+  body('email').not().exists().withMessage('Email cannot be changed here. Contact admin.'),
+  body('specialization').not().exists().withMessage('Specialization is managed by admin.'),
+  body('qualification').not().exists().withMessage('Qualification is managed by admin.'),
+  body('schedule').not().exists().withMessage('Schedule is managed by admin.'),
 ];

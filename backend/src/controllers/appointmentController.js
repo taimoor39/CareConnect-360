@@ -4,127 +4,32 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone.js';
 import utc from 'dayjs/plugin/utc.js';
 import { v4 as uuidv4 } from 'uuid';
+import { Jimp } from 'jimp';
+import jsQR from 'jsqr';
 
 import Appointment from '../models/Appointment.js';
-import DoctorProfile from '../models/DoctorProfile.js';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
 
 import AppError from '../utils/AppError.js';
+import { notifyAdmins } from '../realtime/adminRealtime.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
-import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
+import { todayBoundsInPakistan } from '../utils/dateTime.js';
 import { findPatientByUserId } from '../utils/patientLink.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
-import { pktDayBounds } from '../utils/timezone.js';
+import {
+  applyRoleScope,
+  attachDoctorProfiles,
+  autoMarkMissedAppointments,
+  performAppointmentCheckIn,
+  populateAndEnrich,
+  startEndOfDate,
+  VALID_TRANSITIONS,
+} from '../services/appointmentService.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-// ─── Shared helpers ───────────────────────────────────────────────────────
-
-const startEndOfDate = (dateInput) => {
-  const bounds = dayBoundsInPakistan(dateInput);
-  if (bounds) return { start: bounds.start, end: bounds.end };
-  return pktDayBounds(dateInput);
-};
-
-const parseHHMM = (value = '') => {
-  const match = String(value || '').trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-  if (!match) return null;
-  return { h: Number(match[1]), m: Number(match[2]) };
-};
-
-const slotEndHHMM = (timeSlot = '') => {
-  const [startRaw, endRaw] = String(timeSlot || '').split('-').map((part) => String(part || '').trim());
-  return endRaw || startRaw || '';
-};
-
-const autoMarkMissedAppointments = async (scope = {}) => {
-  const now = new Date();
-  const todayBounds = todayBoundsInPakistan();
-  const todayStart = todayBounds?.start || new Date(now.setHours(0, 0, 0, 0));
-  const todayEnd = todayBounds?.end || new Date();
-
-  // Any scheduled appointment from previous days is definitely missed.
-  await Appointment.updateMany(
-    {
-      ...scope,
-      status: 'Scheduled',
-      date: { $lt: todayStart },
-    },
-    {
-      $set: { status: 'Missed' },
-    },
-  );
-
-  // For today, mark as missed only when the booked slot end time has passed.
-  const todaysScheduled = await Appointment.find({
-    ...scope,
-    status: 'Scheduled',
-    date: { $gte: todayStart, $lte: todayEnd },
-  })
-    .select('_id date timeSlot')
-    .lean();
-
-  const missedIds = [];
-  todaysScheduled.forEach((appointment) => {
-    const hhmm = slotEndHHMM(appointment.timeSlot);
-    const parsed = parseHHMM(hhmm);
-    if (!parsed) return;
-
-    const slotEnd = new Date(appointment.date);
-    slotEnd.setHours(parsed.h, parsed.m, 59, 999);
-    if (slotEnd.getTime() < now.getTime()) {
-      missedIds.push(appointment._id);
-    }
-  });
-
-  if (missedIds.length > 0) {
-    await Appointment.updateMany(
-      { ...scope, _id: { $in: missedIds }, status: 'Scheduled' },
-      { $set: { status: 'Missed' } },
-    );
-  }
-};
-
-const VALID_TRANSITIONS = {
-  Scheduled: ['Checked-In', 'Cancelled'],
-  'Checked-In': ['In-Progress'],
-  'In-Progress': ['Completed'],
-};
-
-const attachDoctorProfiles = async (appointments) => {
-  const rows = appointments.map((r) => (r.toObject ? r.toObject() : r));
-  const doctorIds = rows.map((r) => r.doctorId?._id || r.doctorId).filter(Boolean);
-  const profiles = await DoctorProfile.find({ userId: { $in: doctorIds } })
-    .select('userId specialization qualification schedule')
-    .lean();
-  const map = new Map(profiles.map((p) => [String(p.userId), p]));
-  return rows.map((r) => ({
-    ...r,
-    doctorProfile: map.get(String(r.doctorId?._id || r.doctorId || '')) || null,
-  }));
-};
-
-const applyRoleScope = async (req, baseQuery = {}) => {
-  const query = { ...baseQuery };
-  if (req.user.role === 'doctor') {
-    query.doctorId = req.user._id;
-  } else if (req.user.role === 'patient') {
-    const patient = await findPatientByUserId(req.user._id).select('_id').lean();
-    query.patientId = patient ? patient._id : null;
-  }
-  return query;
-};
-
-const populateAndEnrich = async (id) => {
-  const populated = await Appointment.findById(id)
-    .populate('patientId', 'name patientId patientCode phone email bloodGroup')
-    .populate('doctorId', 'name email');
-  const [row] = await attachDoctorProfiles([populated]);
-  return row;
-};
 
 // ─── Route handlers ───────────────────────────────────────────────────────
 
@@ -260,6 +165,8 @@ export const createAppointment = asyncHandler(async (req, res) => {
 
   await auditFromReq(req, 'APPOINTMENT_CREATED', `Appointment:${appointment._id}`, { patientId, doctorId, date: appointmentDate, timeSlot });
 
+  notifyAdmins({ scopes: ['dashboard'], reason: 'appointment_created' });
+
   const row = await populateAndEnrich(appointment._id);
   res.status(201).json({ success: true, data: { appointment: row, qrCodeImage } });
 });
@@ -290,34 +197,57 @@ export const updateAppointmentStatus = asyncHandler(async (req, res) => {
 
   await auditFromReq(req, 'APPOINTMENT_STATUS_CHANGED', `Appointment:${appointment._id}`, { from: current, to: newStatus });
 
+  notifyAdmins({ scopes: ['dashboard'], reason: 'appointment_status' });
+
   const row = await populateAndEnrich(appointment._id);
   res.json({ success: true, data: row });
 });
 
 export const checkInAppointment = asyncHandler(async (req, res) => {
-  const scoped = await applyRoleScope(req);
-  const appointment = await Appointment.findOne({ ...scoped, qrCode: req.body.qrCode });
-  if (!appointment) throw AppError.notFound('Invalid QR code');
-
-  if (appointment.status === 'Cancelled') throw AppError.badRequest('Appointment was cancelled');
-  if (['Checked-In', 'In-Progress', 'Completed'].includes(appointment.status)) {
-    throw AppError.badRequest('Patient already checked in');
-  }
-  if (appointment.status !== 'Scheduled') {
-    throw AppError.badRequest(`Appointment already ${appointment.status}`);
-  }
-
-  const todayIso = toPakistanISODate(new Date());
-  const apptIso = toPakistanISODate(appointment.date);
-  if (apptIso !== todayIso) throw AppError.badRequest('This appointment is not for today');
-
-  appointment.status = 'Checked-In';
-  await appointment.save();
-
-  await auditFromReq(req, 'PATIENT_CHECKED_IN', `Appointment:${appointment._id}`);
-
-  const row = await populateAndEnrich(appointment._id);
+  const row = await performAppointmentCheckIn(req, { qrCode: req.body.qrCode });
   res.json({ success: true, data: row });
+});
+
+// POST /api/appointments/checkin/image
+// Accepts a multipart "image" file containing a QR code, decodes it
+// server-side and runs the same check-in pipeline. This lets receptionists
+// drop a screenshot or photo of the appointment QR onto the page when the
+// camera is blocked or unreliable.
+export const checkInAppointmentByImage = asyncHandler(async (req, res) => {
+  if (!req.file?.buffer) {
+    throw AppError.badRequest('Please upload a QR image (PNG, JPG, or WebP)');
+  }
+
+  let bitmap;
+  try {
+    const image = await Jimp.read(req.file.buffer);
+    // Slight upscale helps decode small or blurry QR screenshots.
+    if (image.bitmap.width < 320 || image.bitmap.height < 320) {
+      const factor = Math.ceil(320 / Math.min(image.bitmap.width, image.bitmap.height));
+      image.resize({ w: image.bitmap.width * factor, h: image.bitmap.height * factor });
+    }
+    bitmap = image.bitmap;
+  } catch {
+    throw AppError.badRequest('Could not read the uploaded image');
+  }
+
+  const decoded = jsQR(
+    new Uint8ClampedArray(bitmap.data),
+    bitmap.width,
+    bitmap.height,
+    { inversionAttempts: 'attemptBoth' },
+  );
+
+  const payload = String(decoded?.data || '').trim();
+  if (!payload) {
+    throw AppError.badRequest('No QR code found in this image');
+  }
+
+  // Support both "raw QR token" QR codes and "appointment ID" QR codes
+  // generated by older flows or admin tooling.
+  const lookup = /^[a-f\d]{24}$/i.test(payload) ? { _id: payload } : { qrCode: payload };
+  const row = await performAppointmentCheckIn(req, lookup);
+  res.json({ success: true, data: { appointment: row, decoded: payload } });
 });
 
 export const getAppointmentsByPatient = asyncHandler(async (req, res) => {

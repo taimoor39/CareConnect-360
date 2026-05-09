@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 
+import { PasswordInput } from '@/shared/components/PasswordField.jsx';
+
 const roles = ['admin', 'doctor', 'receptionist', 'patient'];
 
 const getStrength = (password) => {
@@ -41,7 +43,16 @@ function CreateUserForm({ form, errors, onChange, onSubmit, saving, firstErrorRe
             {errors.phone ? <p className="mt-1 text-[11px] text-rose-300">{errors.phone}</p> : null}
           </div>
           <div>
-            <input ref={firstErrorRef.password} type="password" name="password" value={form.password} onChange={onChange} placeholder="Password *" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+            <PasswordInput
+              ref={firstErrorRef.password}
+              name="password"
+              autoComplete="new-password"
+              value={form.password}
+              onChange={onChange}
+              placeholder="Password *"
+              size="sm"
+              inputClassName="bg-slate-900/80"
+            />
             {errors.password ? <p className="mt-1 text-[11px] text-rose-300">{errors.password}</p> : null}
             <div className="mt-1 h-1.5 rounded bg-slate-800">
               <div className={`h-full rounded ${passwordStrength.color}`} style={{ width: passwordStrength.width }} />
@@ -49,7 +60,17 @@ function CreateUserForm({ form, errors, onChange, onSubmit, saving, firstErrorRe
             <p className="mt-1 text-[11px] text-slate-400">{passwordStrength.label}</p>
           </div>
           <div>
-            <input ref={firstErrorRef.confirmPassword} type="password" name="confirmPassword" value={form.confirmPassword} onChange={onChange} onBlur={onConfirmBlur} placeholder="Confirm Password *" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+            <PasswordInput
+              ref={firstErrorRef.confirmPassword}
+              name="confirmPassword"
+              autoComplete="new-password"
+              value={form.confirmPassword}
+              onChange={onChange}
+              onBlur={onConfirmBlur}
+              placeholder="Confirm Password *"
+              size="sm"
+              inputClassName="bg-slate-900/80"
+            />
             {errors.confirmPassword ? <p className="mt-1 text-[11px] text-rose-300">{errors.confirmPassword}</p> : null}
           </div>
           <div>

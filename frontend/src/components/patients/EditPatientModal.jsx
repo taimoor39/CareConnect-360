@@ -75,15 +75,19 @@ function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErro
   const canRequestPortalAccess = !patient?.userId && patient?.portalAccessStatus !== 'pending';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-4xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <h3 className="text-lg font-semibold text-white">Edit Patient - {(patient.name || `${patient.firstName || ''} ${patient.lastName || ''}`).trim()}</h3>
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-800">Close</button>
-        </div>
+    <div className="care-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="care-modal-panel care-modal-panel--xl" onClick={(e) => e.stopPropagation()}>
+        <header className="care-modal-header">
+          <h2 className="care-modal-title">
+            Edit patient — {(patient.name || `${patient.firstName || ''} ${patient.lastName || ''}`).trim()}
+          </h2>
+          <button type="button" className="care-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </header>
 
         <form onSubmit={submit}>
-          <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+          <div className="care-modal-body" style={{ maxHeight: 'min(70vh, calc(90vh - 140px))', overflowY: 'auto' }}>
             <div className="mb-3 rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-300">
               Patient Code: <span className="font-mono text-slate-100">{patient.patientId || patient.patientCode || '-'}</span>
             </div>
@@ -168,7 +172,7 @@ function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErro
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-slate-800 px-5 py-4">
+          <div className="mt-4 flex justify-end gap-3 border-t border-[var(--border)] pt-4">
             <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
             <button type="submit" disabled={saving || form.requiredMissing} className="inline-flex h-9 items-center gap-2 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50">
               {saving ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-700 border-t-transparent" /> : null}

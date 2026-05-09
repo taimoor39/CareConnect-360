@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { getDoctorSchedule } from '../../api/doctor.js';
 import DoctorConsultationModal from '../../components/doctor/DoctorConsultationModal.jsx';
-import DoctorLayout from '../../components/doctor/DoctorLayout.jsx';
+import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
 import { getAuthUser } from '../../utils/authUser.js';
 import { formatDateInPakistan } from '../../utils/isoDate.js';
 

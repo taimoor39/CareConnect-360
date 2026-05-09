@@ -18,7 +18,7 @@ import ApproveRequestModal from '../components/portalAccess/ApproveRequestModal.
 import EditEmailModal from '../components/portalAccess/EditEmailModal.jsx';
 import PortalRequestsTable from '../components/portalAccess/PortalRequestsTable.jsx';
 import RejectRequestModal from '../components/portalAccess/RejectRequestModal.jsx';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 
 const initialForm = {
   firstName: '',

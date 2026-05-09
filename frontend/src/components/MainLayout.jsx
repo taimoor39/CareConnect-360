@@ -9,7 +9,7 @@ function MainLayout({
 }) {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 antialiased">
-      <div className="grid min-h-screen grid-cols-1 text-sm lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid min-h-screen grid-cols-1 text-sm lg:grid-cols-[auto_minmax(0,1fr)]">
         <Sidebar />
 
         <section className="flex min-w-0 flex-col">

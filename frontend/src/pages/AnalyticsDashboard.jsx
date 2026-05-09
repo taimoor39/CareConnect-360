@@ -12,6 +12,9 @@ import {
   LineChart,
   Pie,
   PieChart,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
   Radar,
   RadarChart,
   ResponsiveContainer,
@@ -28,7 +31,7 @@ import {
   getAnalyticsRevenue,
   getAnalyticsSummary,
 } from '../api/analytics.js';
-import DashboardLayout from '../components/DashboardLayout.jsx';
+import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
 import { exportToCSV } from '../utils/exportCSV.js';
 import { exportAnalyticsPDF } from '../utils/exportPDF.js';
 import { formatDate } from '../utils/dateHelpers.js';
@@ -42,6 +45,9 @@ const shortMoney = (value) => {
   if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
   return `${n}`;
 };
+
+/** Whole-number ticks for count axes (QA: no 0.25-style fractional ticks). */
+const intTick = (v) => String(Math.round(Number(v)));
 
 const STATUS_COLORS = {
   Completed: '#16a34a',
@@ -326,11 +332,11 @@ function AnalyticsDashboard() {
                 <ComposedChart data={overview.activityOverTime || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="bucket" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                  <YAxis yAxisId="left" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={intTick} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
                   <Tooltip
                     contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10 }}
-                    formatter={(value, name) => [name === 'revenue' ? money(value) : value, name]}
+                    formatter={(value, name) => [name === 'revenue' ? money(value) : intTick(value), name]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar yAxisId="right" dataKey="revenue" fill="#16a34a66" name="Revenue" radius={[4, 4, 0, 0]} />
@@ -346,10 +352,13 @@ function AnalyticsDashboard() {
             <div className="mt-2 h-[220px]">
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart
-                  data={metricRows.map((m) => ({ metric: m.label, value: Number(m.value || 0).toFixed(1) }))}
+                  data={metricRows.map((m) => ({ metric: m.label, value: Math.round(Number(m.value || 0)) }))}
                   outerRadius="70%"
                 >
-                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10 }} />
+                  <PolarGrid stroke="rgba(255,255,255,0.08)" />
+                  <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 10 }} tickFormatter={intTick} />
+                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10 }} formatter={(value) => [`${intTick(value)}%`, 'Score']} />
                   <Radar dataKey="value" stroke="#14b8a6" fill="#14b8a6" fillOpacity={0.3} />
                 </RadarChart>
               </ResponsiveContainer>
@@ -417,7 +426,7 @@ function AnalyticsDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart layout="vertical" data={overview.topSpecializations || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={intTick} />
                   <YAxis dataKey="specialization" type="category" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} width={90} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 10 }} />
                   <Bar dataKey="appointments" fill="#14b8a6" radius={[0, 4, 4, 0]} />
@@ -455,8 +464,8 @@ function AnalyticsDashboard() {
                 <ComposedChart data={patientsData.chart || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={intTick} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={intTick} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
                   <Area yAxisId="left" type="monotone" dataKey="cumulative" stroke="#14b8a6" fill="#14b8a633" name="Cumulative Total" />
                   <Bar yAxisId="right" dataKey="newPatients" fill="#14b8a666" name="New Registrations" />
@@ -620,7 +629,7 @@ function AnalyticsDashboard() {
                 <BarChart data={appointmentsData.volume || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={intTick} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
                   <Legend />
                   <Bar dataKey="completed" fill="#14b8a6" name="Completed" />
@@ -729,7 +738,7 @@ function AnalyticsDashboard() {
                 <ComposedChart data={revenueData.trend || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={(v) => shortMoney(v)} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} tickFormatter={(v) => shortMoney(Math.round(Number(v)))} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} formatter={(v) => money(v)} />
                   <Legend />
                   <Bar dataKey="invoiced" fill="#14b8a666" name="Invoiced" />
@@ -884,7 +893,7 @@ function AnalyticsDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={doctorsData.consultationVolume || []} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                  <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} tickFormatter={intTick} />
                   <YAxis type="category" dataKey="doctor" width={110} tick={{ fill: '#94a3b8', fontSize: 11 }} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
                   <Bar
@@ -906,7 +915,7 @@ function AnalyticsDashboard() {
                 <BarChart data={doctorsData.workloadDistribution || []}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="doctor" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} tickFormatter={intTick} />
                   <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
                   <Legend />
                   <Bar dataKey="completed" stackId="a" fill="#16a34a" />
