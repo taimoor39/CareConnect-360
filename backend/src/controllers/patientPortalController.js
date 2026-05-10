@@ -1,3 +1,9 @@
+/**
+ * Patient portal API (/api/patient/*).
+ *
+ * Resolves the Patient from JWT → Patient.user link; all queries must stay scoped to that record.
+ * Report summaries are only returned when status === Approved (doctor workflow upstream).
+ */
 import Appointment from '../models/Appointment.js';
 import Consultation from '../models/Consultation.js';
 import DoctorProfile from '../models/DoctorProfile.js';

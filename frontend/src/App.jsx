@@ -1,3 +1,13 @@
+/**
+ * Root router for CareConnect 360 SPA (React Router v7).
+ *
+ * Pattern:
+ *   - Public auth routes: /login, /register, /verify-email/:token, forgot/reset password.
+ *   - ProtectedRoute → admin-only shell (legacy shortcut to RoleProtectedRoute admin).
+ *   - RoleProtectedRoute → each portal (doctor / receptionist / patient) under its path prefix.
+ *
+ * Patient portal nests routes under PatientLayout for shared chrome + outlet context.
+ */
 import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
@@ -13,7 +23,9 @@ import Dashboard from './pages/Dashboard.jsx';
 import ChangeRequiredPassword from './pages/ChangeRequiredPassword.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import RegisterPatient from './pages/RegisterPatient.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
+import VerifyEmail from './pages/VerifyEmail.jsx';
 import DoctorManagement from './pages/DoctorManagement.jsx';
 import PatientManagement from './pages/PatientManagement.jsx';
 import DoctorDashboard from './pages/doctor/DoctorDashboard.jsx';
@@ -57,7 +69,10 @@ function App() {
     <>
       <ScrollToTopOnRouteChange />
       <Routes>
+        {/* ─── Public (no JWT) ─── */}
         <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPatient />} />
+      <Route path="/verify-email/:token" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route
@@ -68,6 +83,8 @@ function App() {
           </RoleProtectedRoute>
         )}
       />
+
+      {/* ─── Admin workspace ─── */}
       <Route
         path="/dashboard"
         element={(
@@ -76,6 +93,8 @@ function App() {
           </ProtectedRoute>
         )}
       />
+
+      {/* ─── Doctor portal ─── */}
       <Route
         path="/doctor/dashboard"
         element={(
@@ -132,6 +151,8 @@ function App() {
           </RoleProtectedRoute>
         )}
       />
+
+      {/* ─── Reception (+ admin helpers for same routes) ─── */}
       <Route
         path="/receptionist/dashboard"
         element={(
@@ -172,6 +193,8 @@ function App() {
           </RoleProtectedRoute>
         )}
       />
+
+      {/* ─── Patient portal (nested under PatientLayout) ─── */}
       <Route
         path="/patient"
         element={(
@@ -188,6 +211,8 @@ function App() {
         <Route path="invoices" element={<PatientInvoices />} />
         <Route path="profile" element={<PatientProfile />} />
       </Route>
+
+      {/* ─── Admin-only management modules (some shared with reception where noted) ─── */}
       <Route
         path="/patients"
         element={(
@@ -252,7 +277,7 @@ function App() {
           </ProtectedRoute>
         )}
       />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       <ToastContainer
         position="top-right"

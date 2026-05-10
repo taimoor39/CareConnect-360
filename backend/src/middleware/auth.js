@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import { verifyToken } from '../utils/jwt.js';
+import { findPatientByUserId } from '../utils/patientLink.js';
 
 /**
  * Authenticate the request by verifying the Bearer token.
@@ -61,3 +62,48 @@ export const authorizeRoles = (...allowedRoles) => (req, res, next) => {
 };
 
 export const protect = requireAuth;
+
+/**
+ * For role `patient`, enforce approved portal access on APIs that accept patient JWTs
+ * (/api/patient, /api/appointments, /api/billing). Pending self-reg stays blocked even with an old token.
+ */
+export const requireApprovedPatientPortal = async (req, res, next) => {
+  if (!req.user || req.user.role !== 'patient') {
+    return next();
+  }
+
+  try {
+    const patient = await findPatientByUserId(req.user._id)
+      .select('portalAccessStatus portalAccessRejectionReason')
+      .lean();
+
+    if (!patient) {
+      return res.status(403).json({
+        success: false,
+        message: 'No patient record is linked to this account. Contact your clinic.',
+      });
+    }
+
+    if (patient.portalAccessStatus === 'pending') {
+      return res.status(403).json({
+        success: false,
+        message:
+          'Your portal access is pending administrator approval. Please wait for the clinic to approve your registration.',
+      });
+    }
+
+    if (patient.portalAccessStatus === 'rejected') {
+      const reason = patient.portalAccessRejectionReason
+        ? ` ${patient.portalAccessRejectionReason}`
+        : '';
+      return res.status(403).json({
+        success: false,
+        message: `Portal access was not approved.${reason} Contact your clinic if you need help.`,
+      });
+    }
+
+    return next();
+  } catch {
+    return res.status(500).json({ success: false, message: 'Could not verify portal access' });
+  }
+};

@@ -114,6 +114,16 @@ function Sidebar() {
     [pendingPortalRequests],
   );
 
+  const portalAttention =
+    pendingPortalRequests > 0
+      ? {
+          to: '/users?tab=portal-requests',
+          title: `${pendingPortalRequests} patient portal access ${
+            pendingPortalRequests === 1 ? 'request' : 'requests'
+          } awaiting approval`,
+        }
+      : undefined;
+
   return (
     <AppSidebar
       navItems={navItems}
@@ -125,6 +135,7 @@ function Sidebar() {
       displayRole={auth.role || 'admin'}
       showMobileNav
       mobileNavCols={9}
+      attentionBanner={portalAttention}
     />
   );
 }

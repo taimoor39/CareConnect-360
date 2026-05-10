@@ -1,12 +1,14 @@
 import MedicalTerm from '../models/MedicalTerm.js';
 
-/** Cap avoids oversized payloads to the AI service; aligns with Python-side sanitization. */
+/**
+ * Loads admin-managed medical → simplified pairs from MongoDB for the summarizer HTTP request.
+ * The Python service merges this map with its built-in defaults (longest phrase wins on substitution).
+ *
+ * MAX_TERMS caps payload size (aligned with ai-service sanitization).
+ */
 const MAX_TERMS = 5000;
 
-/**
- * Plain map of medical phrase → patient-friendly phrase for the AI summarizer.
- * Used when calling the Python service so post-BART simplification includes admin-managed terms.
- */
+/** Returns plain { medicalPhrase: simplifiedPhrase } for POST /api/summarize payloads. */
 export async function getMedicalTermsMapForAI() {
   const rows = await MedicalTerm.find({})
     .select('medicalTerm simplifiedTerm')

@@ -35,7 +35,12 @@ export const globalLimiter = rateLimit({
   max: globalMax,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/health' || isLocalIp(req.ip),
+  skip: (req) =>
+    req.path === '/health'
+    || req.path === '/api/health'
+    || req.path === '/api/openapi.json'
+    || req.path.startsWith('/api/docs')
+    || isLocalIp(req.ip),
   message: { success: false, message: 'Too many requests — please try again later' },
 });
 

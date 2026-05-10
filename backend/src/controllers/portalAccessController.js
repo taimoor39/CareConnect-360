@@ -74,10 +74,17 @@ export const createPortalAccessRequest = asyncHandler(async (req, res) => {
 
   const patient = await Patient.findById(patientId);
   if (!patient) throw AppError.notFound('Patient not found');
-  if (patient.userId) throw AppError.badRequest('Patient already has a portal account');
+  if (patient.portalAccessStatus === 'approved') {
+    throw AppError.badRequest('Patient already has approved portal access');
+  }
 
   const existing = await PortalAccessRequest.findOne({ patientId, status: 'pending' });
   if (existing) throw AppError.badRequest('A portal access request is already pending');
+
+  const linked = patient.userId || patient.user;
+  if (linked && patient.portalAccessStatus !== 'pending' && patient.portalAccessStatus !== 'rejected') {
+    throw AppError.badRequest('Patient already has a portal login linked');
+  }
 
   const emailTaken = await User.findOne({ email: normalizedEmail }).lean();
   if (emailTaken) {
@@ -131,10 +138,81 @@ export const approvePortalAccessRequest = asyncHandler(async (req, res) => {
 
   const patient = request.patientId;
   if (!patient) throw AppError.notFound('Patient not found for this request');
-  if (patient.userId) throw AppError.badRequest('Patient already has a portal account');
+  if (patient.portalAccessStatus === 'approved') {
+    throw AppError.badRequest('Patient portal access is already approved');
+  }
 
-  const emailTaken = await User.findOne({ email: request.requestedEmail }).lean();
-  if (emailTaken) {
+  const linkedUserId = patient.userId || patient.user;
+  const emailOwner = await User.findOne({ email: request.requestedEmail }).lean();
+
+  /** Self-registration: User + Patient already exist; admin only flips approval. */
+  if (linkedUserId) {
+    if (!emailOwner || String(emailOwner._id) !== String(linkedUserId)) {
+      throw AppError.conflict(
+        emailOwner
+          ? 'Email is now taken by another user. Ask receptionist to update the email.'
+          : 'Linked login account could not be verified. Contact support.',
+      );
+    }
+
+    await Promise.all([
+      Patient.findByIdAndUpdate(patient._id, {
+        userId: linkedUserId,
+        user: linkedUserId,
+        portalAccessStatus: 'approved',
+        portalAccessRequested: true,
+        portalAccessEmail: request.requestedEmail,
+        portalAccessRejectionReason: null,
+      }),
+      PortalAccessRequest.findByIdAndUpdate(req.params.id, {
+        status: 'approved',
+        approvedBy: req.user._id,
+        approvedAt: new Date(),
+        createdUserId: linkedUserId,
+        rejectionReason: null,
+        rejectedBy: null,
+        rejectedAt: null,
+      }),
+    ]);
+
+    sendPortalWelcomeEmail({
+      patient,
+      email: request.requestedEmail,
+      approvedByName: req.user.name,
+      existingCredentials: true,
+    }).catch((err) => {
+      console.error('[EMAIL] Welcome email failed:', err);
+    });
+
+    await auditLogger({
+      userId: req.user._id,
+      action: 'PORTAL_ACCESS_APPROVED',
+      target: `Patient:${patient._id}`,
+      targetCollection: 'patients',
+      details: {
+        patientName: patient.name,
+        patientCode: patient.patientId,
+        createdUserId: linkedUserId,
+        email: request.requestedEmail,
+        existingLogin: true,
+      },
+      req,
+    });
+
+    notifyAdmins({ scopes: ['dashboard', 'portalBadge'], reason: 'portal_access_approved' });
+
+    return res.json({
+      success: true,
+      message: `Portal access approved for ${patient.name}. They can sign in with the password they chose at registration.`,
+      data: {
+        userId: linkedUserId,
+        email: request.requestedEmail,
+        patientId: patient._id,
+      },
+    });
+  }
+
+  if (emailOwner) {
     throw AppError.conflict('Email is now taken by another user. Ask receptionist to update the email.');
   }
 
@@ -147,11 +225,13 @@ export const approvePortalAccessRequest = asyncHandler(async (req, res) => {
     role: 'patient',
     isActive: true,
     requirePasswordChange: true,
+    isEmailVerified: true,
   });
 
   await Promise.all([
     Patient.findByIdAndUpdate(patient._id, {
       userId: newUser._id,
+      user: newUser._id,
       portalAccessStatus: 'approved',
       portalAccessRequested: true,
       portalAccessEmail: request.requestedEmail,
@@ -173,6 +253,7 @@ export const approvePortalAccessRequest = asyncHandler(async (req, res) => {
     email: request.requestedEmail,
     tempPassword,
     approvedByName: req.user.name,
+    existingCredentials: false,
   }).catch((err) => {
     console.error('[EMAIL] Welcome email failed:', err);
   });
@@ -290,17 +371,20 @@ export const updatePortalAccessRequestedEmail = asyncHandler(async (req, res) =>
 export const getPortalAccessForPatient = asyncHandler(async (req, res) => {
   ensureObjectId(req.params.patientId, 'patientId');
 
-  const patient = await Patient.findById(req.params.patientId).select('userId portalAccessStatus');
+  const patient = await Patient.findById(req.params.patientId).select('user userId portalAccessStatus');
   if (!patient) throw AppError.notFound('Patient not found');
 
   const request = await PortalAccessRequest.findOne({ patientId: req.params.patientId }).sort({ createdAt: -1 }).lean();
 
+  const linkedId = patient.userId || patient.user;
+  const hasPortalAccess = patient.portalAccessStatus === 'approved' && Boolean(linkedId);
+
   res.json({
     success: true,
     data: {
-      hasPortalAccess: Boolean(patient.userId),
+      hasPortalAccess,
       request: request || null,
-      userId: patient.userId || null,
+      userId: linkedId || null,
     },
   });
 });
@@ -313,8 +397,15 @@ export const reopenPortalAccessRequest = asyncHandler(async (req, res) => {
     throw AppError.badRequest('Only rejected requests can be re-opened');
   }
 
-  const emailTaken = await User.findOne({ email: request.requestedEmail }).lean();
-  if (emailTaken) throw AppError.conflict('This email is already registered in the system');
+  const patientForLink = await Patient.findById(request.patientId).select('user userId').lean();
+  const linkedId = patientForLink?.userId || patientForLink?.user;
+  const emailOwner = await User.findOne({ email: request.requestedEmail }).lean();
+  if (
+    emailOwner
+    && (!linkedId || String(emailOwner._id) !== String(linkedId))
+  ) {
+    throw AppError.conflict('This email is already registered in the system');
+  }
 
   request.status = 'pending';
   request.rejectionReason = null;

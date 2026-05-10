@@ -1,3 +1,10 @@
+/**
+ * Appointment domain helpers shared by HTTP controllers and cron jobs.
+ *
+ * - autoMarkMissedAppointments: transitions stale Scheduled rows to Missed (PKT calendar aware).
+ * - performAppointmentCheckIn: validates same-day + Scheduled, notifies admins + doctor email.
+ * - applyRoleScope: narrows queries for doctor vs patient JWT contexts.
+ */
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone.js';
 import utc from 'dayjs/plugin/utc.js';
@@ -7,6 +14,7 @@ import DoctorProfile from '../models/DoctorProfile.js';
 
 import { notifyAdmins } from '../realtime/adminRealtime.js';
 import AppError from '../utils/AppError.js';
+import { sendDoctorPatientCheckedInEmail } from '../utils/emailService.js';
 import { auditFromReq } from '../utils/audit.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { findPatientByUserId } from '../utils/patientLink.js';
@@ -141,5 +149,18 @@ export const performAppointmentCheckIn = async (req, lookup) => {
 
   notifyAdmins({ scopes: ['dashboard'], reason: 'patient_checked_in' });
 
-  return populateAndEnrich(appointment._id);
+  const enriched = await populateAndEnrich(appointment._id);
+  const doctor = enriched?.doctorId;
+  const patientDoc = enriched?.patientId;
+  if (doctor?.email) {
+    sendDoctorPatientCheckedInEmail({
+      doctorEmail: doctor.email,
+      doctorName: doctor.name,
+      patientName: patientDoc?.name,
+      timeSlot: appointment.timeSlot,
+      clinicName: null,
+    }).catch((err) => console.error('[CHECKIN EMAIL]', err?.message || err));
+  }
+
+  return enriched;
 };

@@ -1,3 +1,4 @@
+"""POST /api/summarize (JSON) and POST /api/summarize-pdf (multipart, optional extra_medical_terms_json form field)."""
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.core.constants import MIN_SUMMARIZE_INPUT_CHARS

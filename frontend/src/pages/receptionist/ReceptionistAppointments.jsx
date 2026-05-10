@@ -10,6 +10,7 @@ import BookAppointmentModal from '../../components/appointments/BookAppointmentM
 import CancelDialog from '../../components/appointments/CancelDialog.jsx';
 import RescheduleModal from '../../components/appointments/RescheduleModal.jsx';
 import ReceptionistLayout from '@/shared/layouts/ReceptionistLayout.jsx';
+import { bookFormPrefillFromAppointment } from '../../utils/bookFormPrefillFromAppointment.js';
 import { todayISOInPakistan } from '../../utils/isoDate.js';
 
 function ReceptionistAppointments() {
@@ -189,12 +190,7 @@ function ReceptionistAppointments() {
     setTargetForReschedule(appointment);
     setBookForm((prev) => ({
       ...prev,
-      selectedPatient: appointment.patientId || null,
-      selectedDoctor: appointment.doctorId || null,
-      selectedDate: todayISOInPakistan(),
-      selectedSlot: '',
-      reasonForVisit: '',
-      notes: '',
+      ...bookFormPrefillFromAppointment(appointment),
     }));
     setRescheduleModal(true);
   };

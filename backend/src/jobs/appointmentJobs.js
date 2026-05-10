@@ -1,3 +1,14 @@
+/**
+ * Scheduled engagement + housekeeping tasks (node-cron).
+ *
+ * Schedules are persisted on SystemSettings.cronJobs (see settings UI). Jobs include:
+ *   ER-1  Appointment reminders (~24h ahead, PKT)
+ *   ER-2  Missed appointment notices
+ *   ER-3  Prescription renewal reminders (via prescription renewal cron)
+ *   ER-4  Re-engagement for inactive patients
+ *
+ * Each send is deduped via EngagementLog / wasAlreadySentToday where applicable.
+ */
 import cron from 'node-cron';
 import mongoose from 'mongoose';
 

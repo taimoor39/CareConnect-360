@@ -1,7 +1,18 @@
+/**
+ * CareConnect 360 — Express HTTP API (business logic, MongoDB, JWT auth).
+ *
+ * Typical dev URLs:
+ *   - API + Swagger UI: http://localhost:8000  (/api/docs, /api/openapi.json)
+ *   - Health: GET /health and GET /api/health
+ *
+ * Middleware order is documented inline below (trust proxy → helmet → rate limit → CORS → JSON).
+ * Socket.IO for admin dashboards attaches to the same HTTP server at end of startup.
+ */
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import mongoose from 'mongoose';
+import swaggerUi from 'swagger-ui-express';
 import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +44,7 @@ import settingsRoutes from './routes/settingsRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import receptionistRoutes from './routes/receptionistRoutes.js';
+import { openApiSpec } from './docs/openApiSpec.js';
 import { initAdminRealtime } from './realtime/adminRealtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,6 +106,40 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', mongo: mongoConnected ? 'connected' : 'disconnected' });
 });
 
+app.get('/api/openapi.json', (_req, res) => {
+  res.json(openApiSpec);
+});
+
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(openApiSpec, {
+    customSiteTitle: 'CareConnect 360 API',
+    swaggerOptions: { persistAuthorization: true },
+  }),
+);
+
+/* ─── REST routers (/api/*) — each module maps to ./routes/<name>Routes.js ───
+ * admin          Clinic-wide admin utilities (non-core CRUD helpers live elsewhere).
+ * analytics      Charts / KPIs for admin dashboards.
+ * audit          Immutable audit trail reads + filters.
+ * appointments   Scheduling, QR check-in, status transitions (Pakistan-local dates).
+ * auth           Login, JWT, password reset, patient register, email verification.
+ * billing        Invoices, payments, PDF generation hooks.
+ * dashboard      Role-aware home widgets / counters.
+ * doctors        Admin-facing doctor directory & profiles (not doctor portal).
+ * doctor         Doctor portal (consultations, prescriptions, reports, AI summaries).
+ * engagement     Engagement log reads / stats (cron sends mail via appointmentJobs).
+ * menus          Dynamic sidebar configuration for admins.
+ * patient        Patient portal (JWT-scoped to linked Patient record).
+ * patients       Reception/admin patient CRUD + archive.
+ * portal-access  Patient portal onboarding requests (approve/reject).
+ * seeders        Dev/bootstrap helpers (guard in production if applicable).
+ * settings       SMTP, clinic, cron schedules, AI URL, medical term dictionary CRUD.
+ * staff          Receptionist-focused staff endpoints if separated from users.
+ * users          Admin user CRUD / roles.
+ * receptionist   Receptionist dashboard aggregates + workflows.
+ */
 app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/audit', auditRoutes);
@@ -143,6 +189,7 @@ app.use((error, _req, res, _next) => {
 const port = process.env.PORT || 8000;
 let httpServer;
 
+/** Ensures SystemSettings singleton exists with default email templates (upsert). */
 const initializeSystemSettings = async () => (
   SystemSettings.findOneAndUpdate(
     {},

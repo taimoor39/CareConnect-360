@@ -31,6 +31,7 @@ export const seedAdmin = async (options = {}) => {
     phone,
     password,
     role: 'admin',
+    isEmailVerified: true,
   });
 
   return {

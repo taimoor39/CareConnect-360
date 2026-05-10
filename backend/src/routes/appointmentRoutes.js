@@ -12,7 +12,7 @@ import {
   listAppointments,
   updateAppointmentStatus,
 } from '../controllers/appointmentController.js';
-import { authorizeRoles, protect } from '../middleware/auth.js';
+import { authorizeRoles, protect, requireApprovedPatientPortal } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { checkInValidator, createAppointmentValidator, updateStatusValidator } from '../validators/appointmentValidators.js';
 
@@ -42,6 +42,7 @@ const handleQrImageUpload = (req, res, next) => {
 };
 
 router.use(protect);
+router.use(requireApprovedPatientPortal);
 
 router.get('/', authorizeRoles('admin', 'receptionist', 'doctor', 'patient'), listAppointments);
 router.get('/stats', authorizeRoles('admin', 'receptionist', 'doctor', 'patient'), getAppointmentStats);

@@ -1,3 +1,5 @@
+"""Medical jargon → plain-language map; merged from defaults + optional admin-provided JSON from Mongo."""
+
 import re
 from typing import Mapping
 

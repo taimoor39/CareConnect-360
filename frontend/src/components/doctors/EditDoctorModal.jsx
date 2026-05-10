@@ -19,14 +19,14 @@ function isOvernightShift(start, end) {
 }
 
 const toForm = (doctor) => ({
-  specialization: doctor?.specialization || '',
-  qualification: doctor?.qualification || '',
+  specialization: doctor?.specialization || doctor?.profile?.specialization || '',
+  qualification: doctor?.qualification || doctor?.profile?.qualification || '',
   schedule: {
     days: doctor?.profile?.schedule?.days || [],
     shiftStart: doctor?.profile?.schedule?.shiftStart || '',
     shiftEnd: doctor?.profile?.schedule?.shiftEnd || '',
-    maxPatientsPerDay: doctor?.profile?.schedule?.maxPatientsPerDay || 20,
-    consultationDurationMins: doctor?.profile?.schedule?.consultationDurationMins || 30,
+    maxPatientsPerDay: doctor?.profile?.schedule?.maxPatientsPerDay ?? 20,
+    consultationDurationMins: doctor?.profile?.schedule?.consultationDurationMins ?? 30,
   },
   bio: doctor?.profile?.bio || '',
   isActive: typeof doctor?.isActive === 'boolean' ? doctor.isActive : true,

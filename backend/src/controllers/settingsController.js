@@ -14,7 +14,7 @@ import {
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
-import { invalidateSettingsCache } from '../utils/emailService.js';
+import { invalidateSettingsCache, sendMailWithRetry } from '../utils/emailService.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
 
 const TEMPLATE_KEYS = new Set([
@@ -127,12 +127,16 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
       auth: { user: emailConfig.smtpUser, pass: emailConfig.smtpPass },
     });
     await transporter.verify();
-    await transporter.sendMail({
-      from: `${emailConfig.fromName} <${emailConfig.fromEmail}>`,
-      to: req.user.email,
-      subject: 'CareConnect 360 — Email Test',
-      html: '<h2>Email configuration is working!</h2><p>This is a test email from CareConnect 360.</p>',
-    });
+    await sendMailWithRetry(
+      () =>
+        transporter.sendMail({
+          from: `${emailConfig.fromName} <${emailConfig.fromEmail}>`,
+          to: req.user.email,
+          subject: 'CareConnect 360 — Email Test',
+          html: '<h2>Email configuration is working!</h2><p>This is a test email from CareConnect 360.</p>',
+        }),
+      { logLabel: 'SMTP_TEST_EMAIL' },
+    );
   } catch (err) {
     throw AppError.badRequest(err.message || 'Unable to send test email');
   }

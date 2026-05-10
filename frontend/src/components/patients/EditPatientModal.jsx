@@ -12,9 +12,12 @@ function EditPatientModal({ open, patient, onClose, onSubmit, saving, serverErro
 
   useEffect(() => {
     if (!open || !patient) return;
+    const nameParts = String(patient.name || '')
+      .trim()
+      .split(/\s+/);
     form.reset({
-      firstName: patient.firstName || '',
-      lastName: patient.lastName || '',
+      firstName: patient.firstName || nameParts[0] || '',
+      lastName: patient.lastName || nameParts.slice(1).join(' ') || '',
       dateOfBirth: patient.dateOfBirth ? normalizeISODateInput(patient.dateOfBirth) : '',
       gender: patient.gender || '',
       phone: patient.phone || patient.contact?.phone || '',

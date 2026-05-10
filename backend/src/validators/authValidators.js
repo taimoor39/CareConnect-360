@@ -41,6 +41,38 @@ export const resetPasswordValidator = [
     }),
 ];
 
+export const verifyEmailTokenValidator = [
+  param('token')
+    .notEmpty()
+    .withMessage('Token is required')
+    .matches(/^[a-f0-9]{64}$/i)
+    .withMessage('Invalid verification token'),
+];
+
+export const registerPatientValidator = [
+  body('firstName').notEmpty().trim().withMessage('First name is required'),
+  body('lastName').notEmpty().trim().withMessage('Last name is required'),
+  body('email').notEmpty().isEmail().normalizeEmail(),
+  body('password')
+    .notEmpty()
+    .isLength({ min: 8 })
+    .withMessage('Minimum 8 characters')
+    .matches(/[A-Z]/)
+    .withMessage('Must include uppercase letter')
+    .matches(/[0-9]/)
+    .withMessage('Must include a number'),
+  body('phone').notEmpty().trim(),
+  body('dateOfBirth')
+    .notEmpty()
+    .withMessage('Date of birth is required')
+    .custom((v) => {
+      const d = new Date(v);
+      if (Number.isNaN(d.getTime())) throw new Error('Invalid date of birth');
+      return true;
+    }),
+  body('gender').optional().trim(),
+];
+
 export const changeRequiredPasswordValidator = [
   body('newPassword')
     .notEmpty()

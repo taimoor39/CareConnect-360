@@ -1,3 +1,9 @@
+/**
+ * Clinical patient chart (demographics, address, medical sketch, portal linkage).
+ *
+ * patientId / patientCode are human-readable identifiers; user/userId link an optional login.
+ * Portal onboarding may set portalAccess* fields when requests are pending or approved.
+ */
 import mongoose from 'mongoose';
 
 const addressSchema = new mongoose.Schema(

@@ -1,3 +1,9 @@
+/**
+ * Staff & patient login identity. Role drives portal routing on the SPA.
+ *
+ * Sensitive auth fields: password (hashed pre-save), passwordReset*, emailVerification*,
+ * tokenVersion (JWT invalidation on password change).
+ */
 import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 
@@ -62,6 +68,16 @@ const userSchema = new mongoose.Schema(
     passwordResetExpiry: {
       type: Date,
       default: null,
+    },
+    emailVerificationToken: {
+      type: String,
+      default: '',
+      select: false,
+    },
+    emailVerificationExpiry: {
+      type: Date,
+      default: null,
+      select: false,
     },
     requirePasswordChange: {
       type: Boolean,

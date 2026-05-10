@@ -1,3 +1,10 @@
+/**
+ * Doctor portal API (/api/doctor/*) — scoped by JWT to the logged-in doctor.
+ *
+ * Medical reports: upload stores PDF or text; summarization calls the Python AI service
+ * (see summarizeDoctorReport) which runs BART + medical term simplification (Mongo terms included).
+ * Summaries stay Pending until the doctor approves — then patients see them in /api/patient.
+ */
 import Appointment from '../models/Appointment.js';
 import Consultation from '../models/Consultation.js';
 import DoctorProfile from '../models/DoctorProfile.js';

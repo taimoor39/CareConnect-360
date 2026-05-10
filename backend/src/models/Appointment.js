@@ -82,7 +82,16 @@ const appointmentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-appointmentSchema.index({ doctorId: 1, date: 1, timeSlot: 1 }, { unique: true });
+/** FR-18: prevent double-booking while allowing reuse after Completed/Missed/Cancelled */
+appointmentSchema.index(
+  { doctorId: 1, date: 1, timeSlot: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ['Scheduled', 'Checked-In', 'In-Progress'] },
+    },
+  },
+);
 
 appointmentSchema.set('toJSON', {
   transform: (_doc, ret) => {

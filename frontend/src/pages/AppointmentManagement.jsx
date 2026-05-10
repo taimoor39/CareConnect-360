@@ -21,6 +21,7 @@ import BookAppointmentModal from '../components/appointments/BookAppointmentModa
 import CancelDialog from '../components/appointments/CancelDialog.jsx';
 import QRSuccessModal from '../components/appointments/QRSuccessModal.jsx';
 import RescheduleModal from '../components/appointments/RescheduleModal.jsx';
+import { bookFormPrefillFromAppointment } from '../utils/bookFormPrefillFromAppointment.js';
 import { parseLocalDateFromISO, toISOInputValue, todayISOInPakistan } from '../utils/isoDate.js';
 
 /** List filters derived from URL. No `date` query = all dates (backend sends full paginated list). */
@@ -326,12 +327,7 @@ function AppointmentManagement() {
     setTargetForReschedule(appointment);
     setBookForm((prev) => ({
       ...prev,
-      selectedPatient: appointment.patientId || null,
-      selectedDoctor: appointment.doctorId || null,
-      selectedDate: '',
-      selectedSlot: '',
-      reasonForVisit: '',
-      notes: '',
+      ...bookFormPrefillFromAppointment(appointment),
     }));
     setRescheduleModal(true);
   };

@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { changeRequiredPassword } from '../api/auth.js';
-import { AuthFormSurface, AuthSplitLayout } from '@/shared/components/auth/AuthSplitLayout.jsx';
+import {
+  AuthFormSurface,
+  AuthSplitLayout,
+  authFieldLabelClass,
+} from '@/shared/components/auth/AuthSplitLayout.jsx';
 import { PasswordInput } from '@/shared/components/PasswordField.jsx';
 
 const getStrength = (password) => {
@@ -85,15 +89,14 @@ function ChangeRequiredPassword() {
 
   return (
     <AuthSplitLayout variant="login">
-      <AuthFormSurface>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-400/90">Password update required</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Set a new password</h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-slate-400">
-          Your administrator issued a temporary password. Choose a strong replacement to unlock your workspace.
-        </p>
-        <form className="mt-8 space-y-5" onSubmit={submit}>
+      <AuthFormSurface
+        eyebrow="Password update required"
+        title="Set a new password"
+        subtitle="Your administrator issued a temporary password. Choose a strong replacement to unlock your workspace."
+      >
+        <form className="mt-7 space-y-5" onSubmit={submit}>
           <div>
-            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400" htmlFor="cr-pw1">
+            <label className={authFieldLabelClass} htmlFor="cr-pw1">
               New password
             </label>
             <PasswordInput
@@ -113,7 +116,7 @@ function ChangeRequiredPassword() {
             </ul>
           </div>
           <div>
-            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400" htmlFor="cr-pw2">
+            <label className={authFieldLabelClass} htmlFor="cr-pw2">
               Confirm password
             </label>
             <PasswordInput

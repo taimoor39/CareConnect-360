@@ -7,6 +7,7 @@ import {
   AuthFormSurface,
   AuthSplitLayout,
   MailGlyph,
+  authFieldLabelClass,
 } from '@/shared/components/auth/AuthSplitLayout.jsx';
 
 /* ─── Icon glyphs ────────────────────────────────────────────── */
@@ -151,10 +152,7 @@ function ForgotPassword() {
 
             <form className="mt-7 space-y-5" onSubmit={submit}>
               <div>
-                <label
-                  className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400"
-                  htmlFor="forgot-email"
-                >
+                <label className={authFieldLabelClass} htmlFor="forgot-email">
                   Registered email
                 </label>
                 <div className="relative">
@@ -201,7 +199,7 @@ function ForgotPassword() {
                 )}
               </button>
 
-              <p className="flex items-center gap-1.5 text-[12px] text-slate-500">
+              <p className="flex items-center gap-1.5 text-[13px] text-slate-500">
                 <ClockIcon />
                 Link expires in 1 hour
               </p>
@@ -223,7 +221,7 @@ function ForgotPassword() {
               <span className="font-medium text-slate-200">{sentTo}</span>, a password reset link
               has been sent.
             </p>
-            <p className="mt-2.5 flex items-center justify-center gap-1.5 text-[12px] text-slate-500">
+            <p className="mt-2.5 flex items-center justify-center gap-1.5 text-[13px] text-slate-500">
               <ClockIcon />
               Link expires in 1 hour &middot; Check spam or promotions folders.
             </p>

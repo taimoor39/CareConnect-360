@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-import logoSrc from '@/assets/logo.png';
 import { clearAuthSession, getAuthUser } from '@/utils/authUser.js';
+import { publicLogoUrl } from '@/utils/publicLogoUrl.js';
+
+const logoSrc = publicLogoUrl();
 
 function readStoredCollapsed(key) {
   try {
@@ -15,6 +17,7 @@ function readStoredCollapsed(key) {
 /**
  * Universal sidebar (REF-1). Same structure for Admin, Doctor, Receptionist, Patient.
  * @param {{ path: string, label: string, icon: React.ReactNode, badge?: number, exact?: boolean }[]} navItems
+ * @param {{ to: string, title: string }=} attentionBanner Optional compact notice above nav (e.g. pending portal requests).
  */
 function AppSidebar({
   navItems,
@@ -25,6 +28,7 @@ function AppSidebar({
   mobileNavCols = 9,
   displayName: displayNameProp,
   displayRole: displayRoleProp,
+  attentionBanner,
   /** Per-portal key so collapse state survives navigation and remounts */
   collapseStorageKey = 'cc360_sidebar_collapsed',
 }) {
@@ -67,7 +71,13 @@ function AppSidebar({
       <Link
         key={item.path}
         to={item.path}
-        title={collapsedMode ? item.label : ''}
+        title={
+          collapsedMode
+            ? item.badge > 0
+              ? `${item.label} — ${item.badge} notification${item.badge === 1 ? '' : 's'}`
+              : item.label
+            : ''
+        }
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -107,9 +117,34 @@ function AppSidebar({
             alignItems: 'center',
             justifyContent: 'center',
             color: isActive ? '#0d9488' : 'inherit',
+            position: 'relative',
           }}
         >
           {item.icon}
+          {item.badge > 0 && collapsedMode ? (
+            <span
+              aria-hidden
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: -8,
+                minWidth: 17,
+                height: 17,
+                padding: '0 4px',
+                borderRadius: 999,
+                background: '#dc2626',
+                color: '#fff',
+                fontSize: item.badge > 99 ? 8 : 9,
+                fontWeight: 700,
+                lineHeight: '15px',
+                textAlign: 'center',
+                border: '2px solid #0d1525',
+                boxSizing: 'border-box',
+              }}
+            >
+              {item.badge > 99 ? '99+' : item.badge}
+            </span>
+          ) : null}
         </span>
         {!collapsedMode && (
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
@@ -128,7 +163,7 @@ function AppSidebar({
               textAlign: 'center',
             }}
           >
-            {item.badge}
+            {item.badge > 99 ? '99+' : item.badge}
           </span>
         ) : null}
       </Link>
@@ -236,6 +271,86 @@ function AppSidebar({
             {portalLabel}
           </div>
         )}
+
+        {!collapsed && attentionBanner ? (
+          <Link
+            to={attentionBanner.to}
+            style={{
+              margin: '4px 8px 8px',
+              display: 'block',
+              padding: '10px 12px',
+              borderRadius: 10,
+              textDecoration: 'none',
+              background: 'rgba(13, 148, 136, 0.14)',
+              border: '1px solid rgba(13, 148, 136, 0.35)',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(13, 148, 136, 0.22)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(13, 148, 136, 0.14)';
+            }}
+          >
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  flexShrink: 0,
+                  marginTop: 2,
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: '#f97316',
+                  boxShadow: '0 0 0 3px rgba(249, 115, 22, 0.25)',
+                }}
+              />
+              <span style={{ minWidth: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: '#99f6e4',
+                    letterSpacing: '0.02em',
+                    lineHeight: 1.35,
+                  }}
+                >
+                  Portal access
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    marginTop: 2,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: '#e2e8f0',
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {attentionBanner.title}
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    marginTop: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#5eead4',
+                  }}
+                >
+                  Review →
+                </span>
+              </span>
+            </span>
+          </Link>
+        ) : null}
 
         <nav
           className="app-scrollbar-minimal"
@@ -377,11 +492,21 @@ function AppSidebar({
             <Link
               key={`m-${item.path}`}
               to={item.path}
-              className={`flex min-h-[3rem] flex-col items-center justify-center rounded-xl px-1 text-center text-[0.65rem] transition ${
+              className={`relative flex min-h-[3rem] flex-col items-center justify-center rounded-xl px-1 text-center text-[0.65rem] transition ${
                 active ? 'bg-teal-500/20 text-teal-100' : 'text-slate-400 hover:bg-white/5'
               }`}
             >
-              <span className="flex h-[18px] w-[18px] items-center justify-center [&_svg]:h-[15px] [&_svg]:w-[15px]">{item.icon}</span>
+              <span className="relative flex h-[18px] w-[18px] items-center justify-center [&_svg]:h-[15px] [&_svg]:w-[15px]">
+                {item.icon}
+                {item.badge > 0 ? (
+                  <span
+                    className="absolute -right-2 -top-2 flex min-h-[15px] min-w-[15px] items-center justify-center rounded-full bg-red-600 px-1 text-[8px] font-bold leading-none text-white ring-2 ring-[rgba(7,13,26,0.92)]"
+                    aria-label={`${item.badge} notifications`}
+                  >
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                ) : null}
+              </span>
               <span className="mt-1 leading-tight">{item.label}</span>
             </Link>
           );

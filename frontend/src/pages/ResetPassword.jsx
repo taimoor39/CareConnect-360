@@ -3,7 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 import { resetPassword, verifyResetToken } from '../api/auth.js';
-import { AuthFormSurface, AuthSplitLayout } from '@/shared/components/auth/AuthSplitLayout.jsx';
+import {
+  AuthFormSurface,
+  AuthSplitLayout,
+  authFieldLabelClass,
+} from '@/shared/components/auth/AuthSplitLayout.jsx';
 import { PasswordInput } from '@/shared/components/PasswordField.jsx';
 
 const getStrength = (password) => {
@@ -130,9 +134,9 @@ function ResetPassword() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-400/90">New credentials</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Choose a new password</h2>
             <p className="mt-1 text-[13px] text-slate-400">Use a strong password you don&apos;t reuse elsewhere.</p>
-            <form className="mt-8 space-y-5" onSubmit={submit}>
+            <form className="mt-7 space-y-5" onSubmit={submit}>
               <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400" htmlFor="reset-pw1">
+                <label className={authFieldLabelClass} htmlFor="reset-pw1">
                   New password
                 </label>
                 <PasswordInput
@@ -152,7 +156,7 @@ function ResetPassword() {
                 </ul>
               </div>
               <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400" htmlFor="reset-pw2">
+                <label className={authFieldLabelClass} htmlFor="reset-pw2">
                   Confirm password
                 </label>
                 <PasswordInput
@@ -192,7 +196,7 @@ function ResetPassword() {
             <SuccessGlyph />
             <h2 className="mt-5 text-xl font-semibold text-white">Password updated</h2>
             <p className="mt-3 text-[13px] text-slate-400">You can sign in with your new password.</p>
-            <p className="mt-2 text-[12px] text-slate-500">Redirecting to sign in in a few seconds…</p>
+            <p className="mt-2 text-[13px] text-slate-500">Redirecting to sign in in a few seconds…</p>
             <button
               type="button"
               onClick={() => navigate('/login', { replace: true })}

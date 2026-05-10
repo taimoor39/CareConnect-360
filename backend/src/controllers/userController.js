@@ -128,6 +128,7 @@ export const createUser = asyncHandler(async (req, res) => {
     specialization: isDoctorRole ? String(req.body.specialization || '').trim() : '',
     qualification: isDoctorRole ? String(req.body.qualification || '').trim() : '',
     isActive: true,
+    isEmailVerified: true,
   });
 
   await auditFromReq(req, 'USER_CREATED', `User:${user._id}`);
@@ -142,6 +143,15 @@ export const createUser = asyncHandler(async (req, res) => {
 export const getUserById = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select('-password').lean();
   if (!user) throw AppError.notFound('User not found');
+
+  /* Doctor specialization often lives on DoctorProfile; merge so User Management edit form prefills. */
+  if (user.role === 'doctor') {
+    const profile = await DoctorProfile.findOne({ userId: user._id })
+      .select('specialization qualification')
+      .lean();
+    user.specialization = profile?.specialization || user.specialization || '';
+    user.qualification = profile?.qualification || user.qualification || '';
+  }
 
   res.json({ success: true, data: { user } });
 });

@@ -1,3 +1,4 @@
+"""BART-large-CNN summarization + deterministic medical phrase substitution (built-ins + optional Mongo map)."""
 import time
 import re
 from datetime import datetime

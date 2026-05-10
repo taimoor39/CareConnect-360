@@ -1,4 +1,6 @@
-import logo from '@/assets/logo.png';
+import { publicLogoUrl } from '@/utils/publicLogoUrl.js';
+
+const logoUrl = publicLogoUrl();
 
 /* ─── Exported glyphs (consumed by page components) ─────────── */
 
@@ -242,7 +244,7 @@ export function AuthMarketingAside({ variant = 'login' }) {
     <div className="flex flex-1 flex-col justify-center lg:min-h-[min(100vh-8rem,640px)] lg:max-w-xl lg:pr-4 xl:pr-10">
       <div className="mb-10 flex items-center gap-3">
         <img
-          src={logo}
+          src={logoUrl}
           alt=""
           className="h-9 w-9 shrink-0 rounded-lg object-contain"
           width={36}
@@ -263,11 +265,36 @@ export function AuthMarketingAside({ variant = 'login' }) {
   );
 }
 
-export function AuthFormSurface({ children, className = '' }) {
+/** Matches Login / Forgot / Reset password field labels (uppercase micro-label). */
+export const authFieldLabelClass =
+  'mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400';
+
+/** Matches Login email input — same shell as dashboard `text-sm` controls. */
+export const authTextInputClass =
+  'w-full rounded-xl border border-slate-700/90 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20';
+
+/**
+ * Auth card shell. Optional header uses the same type scale as LoginPage / ForgotPassword.
+ */
+export function AuthFormSurface({ children, className = '', eyebrow, title, subtitle }) {
+  const showHeader = Boolean(eyebrow || title || subtitle);
   return (
     <div
       className={`rounded-2xl border border-[var(--border)] bg-[var(--bg-card)]/98 p-8 shadow-[var(--shadow-card)] backdrop-blur-sm sm:p-9 ${className}`}
     >
+      {showHeader ? (
+        <header>
+          {eyebrow ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-400/90">{eyebrow}</p>
+          ) : null}
+          {title ? (
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">{title}</h2>
+          ) : null}
+          {subtitle ? (
+            <p className="mt-1 text-[13px] leading-relaxed text-slate-400">{subtitle}</p>
+          ) : null}
+        </header>
+      ) : null}
       {children}
     </div>
   );

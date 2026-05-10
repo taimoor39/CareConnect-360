@@ -95,6 +95,7 @@ const ensureLinkedUser = async ({ patient, reqBody, shouldCreate }) => {
       phone: String(reqBody.phone || '').trim(),
       password,
       role: 'patient',
+      isEmailVerified: true,
     });
     return user._id;
   }

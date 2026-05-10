@@ -1,3 +1,7 @@
+/**
+ * Client-side route guard: requires JWT + role allow-list + optional forced password change.
+ * Wrong role → redirect to that role's home (see roleRedirectMap).
+ */
 import { Navigate, useLocation } from 'react-router-dom';
 
 import { getValidStoredTokenOrClear } from '../../utils/authUser.js';

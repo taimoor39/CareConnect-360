@@ -121,7 +121,11 @@ function AuditLogs() {
       getAuditActions().then((r) => setAvailableActions(r.data.data)),
       getAuditUsers().then((r) => setAvailableUsers(r.data.data)),
     ]).catch(() => {});
-    toast.info('Logs auto-refresh every 60 seconds', { autoClose: 3000 });
+    toast.info('Logs auto-refresh every 60 seconds', {
+      autoClose: 3000,
+      // Dedupe: React Strict Mode runs mount effects twice in dev; same id → single toast.
+      toastId: 'audit-logs-auto-refresh-hint',
+    });
   }, []);
 
   useEffect(() => {

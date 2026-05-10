@@ -13,12 +13,13 @@ import {
   streamInvoicePdf,
   updateInvoice,
 } from '../controllers/billingController.js';
-import { authorizeRoles, protect } from '../middleware/auth.js';
+import { authorizeRoles, protect, requireApprovedPatientPortal } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { createInvoiceValidator, invoiceIdValidator, recordPaymentValidator } from '../validators/billingValidators.js';
 
 const router = Router();
 router.use(protect);
+router.use(requireApprovedPatientPortal);
 
 router.get('/', authorizeRoles('admin', 'receptionist', 'patient'), listInvoices);
 router.get('/stats', authorizeRoles('admin'), getBillingStats);

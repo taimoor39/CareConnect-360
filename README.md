@@ -138,7 +138,8 @@ Features:
 
 | Prefix | Purpose |
 |---|---|
-| `/api/auth` | Login, forgot/reset password, token verify |
+| `/api/auth` | Login, patient register, email verify/resend, forgot/reset password |
+| `/api/openapi.json`, `/api/docs` | OpenAPI JSON + Swagger UI (API docs) |
 | `/api/users` | User CRUD, status toggle, role change, password reset |
 | `/api/patients` | Patient CRUD, search, stats, archive |
 | `/api/doctors` | Doctor listing and profiles |
@@ -274,6 +275,9 @@ If login shows **"Too many login attempts — please try again later"** during l
 - Use seeded credentials from `backend/src/seeders/admin.defaults.json`:
   - `admin@example.com / abc123456`
 - Confirm MongoDB points to the same DB where seeded user exists (`backend/.env` `MONGODB_URI`).
+- Optional **`ENFORCE_EMAIL_VERIFICATION=true`** blocks login for unverified non-admin accounts until they complete `/verify-email/:token`.
+- **Patient self-registration:** `POST /api/auth/register` (also `/register` in the SPA) creates a linked Patient + User; verification email is sent when SMTP is configured in Settings.
+- **Staff users** created by admin are marked email-verified at creation; **portal-approved** patient accounts are verified when the clinic approves access.
 
 ### Production Build
 

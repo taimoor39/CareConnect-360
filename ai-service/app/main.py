@@ -1,3 +1,4 @@
+"""FastAPI application factory — mount point for all AI HTTP routes (summarize, health, terms)."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

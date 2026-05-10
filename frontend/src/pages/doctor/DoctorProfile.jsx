@@ -251,7 +251,14 @@ function DoctorProfile() {
             {!editing ? (
               <button
                 type="button"
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setEditForm({
+                    phone: profile?.phone || '',
+                    bio: profile?.bio || '',
+                  });
+                  setEditErrors({});
+                  setEditing(true);
+                }}
                 style={{
                   padding: '6px 14px',
                   background: 'rgba(13,148,136,0.1)',

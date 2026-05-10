@@ -8,6 +8,7 @@ import {
   AuthSplitLayout,
   MailGlyph,
   ShieldGlyph,
+  authFieldLabelClass,
 } from '@/shared/components/auth/AuthSplitLayout.jsx';
 import { PasswordInput } from '@/shared/components/PasswordField.jsx';
 
@@ -183,10 +184,7 @@ function LoginPage() {
 
         <form className="mt-7 space-y-5" onSubmit={handleSubmit}>
           <div>
-            <label
-              className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400"
-              htmlFor="login-email"
-            >
+            <label className={authFieldLabelClass} htmlFor="login-email">
               Email
             </label>
             <div className="relative">
@@ -209,10 +207,7 @@ function LoginPage() {
           </div>
 
           <div>
-            <label
-              className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-slate-400"
-              htmlFor="login-password"
-            >
+            <label className={authFieldLabelClass} htmlFor="login-password">
               Password
             </label>
             <PasswordInput
@@ -232,6 +227,13 @@ function LoginPage() {
               Forgot your password?
             </Link>
           </div>
+
+          <p className="text-center text-[13px] text-slate-400">
+            New patient?{' '}
+            <Link className="font-medium text-teal-400 hover:text-teal-300" to="/register">
+              Create an account
+            </Link>
+          </p>
 
           {error ? (
             <div className="flex items-start gap-2 rounded-lg border border-rose-500/25 bg-rose-500/[0.08] px-3 py-2.5 text-[13px] leading-snug text-rose-100">

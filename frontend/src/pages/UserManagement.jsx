@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -6,7 +6,15 @@ import AddUserModal from '../components/AddUserModal.jsx';
 import EditUserModal from '../components/EditUserModal.jsx';
 import UserStatCards from '../components/UserStatCards.jsx';
 import UserTable from '../components/UserTable.jsx';
-import { createUser, fetchUsers, sendUserResetEmail, setUserTempPassword, toggleUserStatus, updateUser } from '../api/users.js';
+import {
+  createUser,
+  fetchUserById,
+  fetchUsers,
+  sendUserResetEmail,
+  setUserTempPassword,
+  toggleUserStatus,
+  updateUser,
+} from '../api/users.js';
 import {
   approvePortalAccess,
   getPortalAccessRequests,
@@ -19,6 +27,7 @@ import EditEmailModal from '../components/portalAccess/EditEmailModal.jsx';
 import PortalRequestsTable from '../components/portalAccess/PortalRequestsTable.jsx';
 import RejectRequestModal from '../components/portalAccess/RejectRequestModal.jsx';
 import DashboardLayout from '@/shared/layouts/DashboardLayout.jsx';
+import { adminRefreshMatchesScopes, subscribeAdminRealtime } from '../utils/adminRealtimeClient.js';
 
 const initialForm = {
   firstName: '',
@@ -156,6 +165,34 @@ function UserManagement() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    setActiveTab(tab === 'portal-requests' ? 'portal-requests' : 'all-users');
+  }, [location.search]);
+
+  /** Sidebar badge uses pending-only counts; tab label must stay in sync even while All Users is selected (counts load on tab open otherwise). */
+  const refreshPortalCounts = useCallback(async () => {
+    try {
+      const response = await getPortalAccessRequests({ status: 'all', page: 1, limit: 1 });
+      const data = response.data?.data || {};
+      const counts = data.counts || { pending: 0, approved: 0, rejected: 0, total: 0 };
+      setPortalData((prev) => ({ ...prev, counts }));
+    } catch {
+      /* counts optional when browsing All Users */
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPortalCounts();
+  }, [refreshPortalCounts]);
+
+  useEffect(() => {
+    return subscribeAdminRealtime((payload) => {
+      if (!adminRefreshMatchesScopes(payload, ['portalBadge'])) return;
+      refreshPortalCounts();
+    });
+  }, [refreshPortalCounts]);
 
   const loadPortalRequests = async (status = portalFilter) => {
     try {
@@ -307,9 +344,15 @@ function UserManagement() {
     }
   };
 
-  const handleEdit = (user) => {
-    setEditForm(toEditForm(user));
+  const handleEdit = async (user) => {
     setEditErrors({});
+    try {
+      const res = await fetchUserById(user._id);
+      const u = res.data?.data?.user || user;
+      setEditForm(toEditForm(u));
+    } catch {
+      setEditForm(toEditForm(user));
+    }
     setEditOpen(true);
   };
 
@@ -453,8 +496,20 @@ function UserManagement() {
             <button type="button" onClick={() => { setActiveTab('all-users'); navigate('/users'); }} className={`rounded-lg px-3 py-1.5 text-xs ${activeTab === 'all-users' ? 'bg-teal-500 text-slate-900' : 'border border-slate-700 text-slate-200'}`}>
               All Users ({stats.totalUsers || users.length || 0})
             </button>
-            <button type="button" onClick={() => { setActiveTab('portal-requests'); navigate('/users?tab=portal-requests'); }} className={`rounded-lg px-3 py-1.5 text-xs ${activeTab === 'portal-requests' ? 'bg-teal-500 text-slate-900' : 'border border-slate-700 text-slate-200'}`}>
-              Portal Requests ({portalData.counts.total || 0}) {portalData.counts.pending > 0 ? '🔴' : ''}
+            <button
+              type="button"
+              title={
+                portalData.counts.total > 0
+                  ? `${portalData.counts.pending || 0} pending · ${portalData.counts.total} total in queue`
+                  : undefined
+              }
+              onClick={() => {
+                setActiveTab('portal-requests');
+                navigate('/users?tab=portal-requests');
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs ${activeTab === 'portal-requests' ? 'bg-teal-500 text-slate-900' : 'border border-slate-700 text-slate-200'}`}
+            >
+              Portal Requests ({portalData.counts.pending || 0}) {portalData.counts.pending > 0 ? '🔴' : ''}
             </button>
           </div>
 

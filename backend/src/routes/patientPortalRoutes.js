@@ -10,7 +10,7 @@ import {
   listPatientReports,
   updatePatientProfile,
 } from '../controllers/patientPortalController.js';
-import { authorizeRoles, protect } from '../middleware/auth.js';
+import { authorizeRoles, protect, requireApprovedPatientPortal } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { patientReportIdValidator, updateProfileValidator } from '../validators/patientPortalValidators.js';
 
@@ -18,6 +18,7 @@ const router = Router();
 
 router.use(protect);
 router.use(authorizeRoles('patient'));
+router.use(requireApprovedPatientPortal);
 
 router.get('/dashboard-stats', getPatientDashboardStats);
 router.get('/appointments', listPatientAppointments);

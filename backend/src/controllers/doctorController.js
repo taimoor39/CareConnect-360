@@ -5,6 +5,7 @@ import { notifyAdmins } from '../realtime/adminRealtime.js';
 import User from '../models/User.js';
 
 import AppError from '../utils/AppError.js';
+import { sendMailWithRetry } from '../utils/emailService.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
 import { dayBoundsInPakistan, isISODateOnly, toPakistanISODate } from '../utils/dateTime.js';
@@ -94,12 +95,16 @@ const sendWelcomeEmailAsync = (user) => {
         secure: Number(process.env.SMTP_PORT || 587) === 465,
         auth: { user: smtpUser, pass },
       });
-      await transport.sendMail({
-        from: process.env.SMTP_FROM || smtpUser,
-        to: user.email,
-        subject: 'Welcome to CareConnect 360',
-        text: `Hello ${user.name}, your doctor account is now active on CareConnect 360.`,
-      });
+      await sendMailWithRetry(
+        () =>
+          transport.sendMail({
+            from: process.env.SMTP_FROM || smtpUser,
+            to: user.email,
+            subject: 'Welcome to CareConnect 360',
+            text: `Hello ${user.name}, your doctor account is now active on CareConnect 360.`,
+          }),
+        { logLabel: 'DOCTOR_WELCOME_EMAIL' },
+      );
     } catch (err) {
       console.error('Welcome email failed:', err.message);
     }
@@ -199,6 +204,7 @@ export const createDoctor = asyncHandler(async (req, res) => {
     specialization: String(req.body.specialization || '').trim(),
     qualification: String(req.body.qualification || '').trim(),
     isActive: true,
+    isEmailVerified: true,
   });
 
   let profile;

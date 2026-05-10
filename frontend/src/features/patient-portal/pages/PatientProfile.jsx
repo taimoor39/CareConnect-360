@@ -295,7 +295,11 @@ function PatientProfile() {
           {!editing ? (
             <button
               type="button"
-              onClick={() => setEditing(true)}
+              onClick={() => {
+                setForm(initial);
+                setEditErrors({});
+                setEditing(true);
+              }}
               style={{
                 padding: '6px 14px',
                 background: 'rgba(13,148,136,0.1)',
