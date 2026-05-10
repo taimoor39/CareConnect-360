@@ -1,6 +1,7 @@
 import re
+from typing import Mapping
 
-# Canonical term → plain-language mapping (single source for AI substitution + /api/terms).
+# Canonical term → plain-language mapping (defaults; Mongo-backed terms override on CI match).
 _MEDICAL_TERMS_RAW = {
   "hypertension": "high blood pressure",
   "hyperlipidemia": "high cholesterol",
@@ -57,15 +58,44 @@ _MEDICAL_TERMS_RAW = {
 # Stable order for API consumers (alphabetical by medical term).
 MEDICAL_TERMS = dict(sorted(_MEDICAL_TERMS_RAW.items(), key=lambda kv: kv[0].lower()))
 
-# Longer phrases first so e.g. "myocardial ischemia" replaces before "ischemia".
-_MEDICAL_TERMS_SUBST_ORDER = dict(
-  sorted(_MEDICAL_TERMS_RAW.items(), key=lambda kv: len(kv[0]), reverse=True),
-)
+_ORDERED_BASE_ITEMS = tuple(sorted(_MEDICAL_TERMS_RAW.items(), key=lambda kv: len(kv[0]), reverse=True))
 
 
-def simplify_medical_terms(text: str) -> str:
+def merge_medical_term_maps(
+  base: dict[str, str],
+  extra: Mapping[str, str] | None,
+) -> dict[str, str]:
+  """
+  Overlay admin / DB terms on built-ins. Same phrase (case-insensitive) uses the extra mapping.
+  """
+  if not extra:
+    return dict(base)
+  merged = dict(base)
+  lower_to_key = {k.lower(): k for k in merged}
+  for mk_raw, sv_raw in extra.items():
+    mk_clean = str(mk_raw).strip()
+    sv_clean = str(sv_raw).strip()
+    if not mk_clean or not sv_clean:
+      continue
+    lk = mk_clean.lower()
+    old = lower_to_key.get(lk)
+    if old is not None:
+      del merged[old]
+    merged[mk_clean] = sv_clean
+    lower_to_key[lk] = mk_clean
+  return merged
+
+
+def simplify_medical_terms(text: str, extra_medical_terms: Mapping[str, str] | None = None) -> str:
+  """Replace medical jargon with plain language on BART output (longest phrases first)."""
+  if extra_medical_terms:
+    merged = merge_medical_term_maps(_MEDICAL_TERMS_RAW, extra_medical_terms)
+    ordered = sorted(merged.items(), key=lambda kv: len(kv[0]), reverse=True)
+  else:
+    ordered = _ORDERED_BASE_ITEMS
+
   result = text
-  for medical, simple in _MEDICAL_TERMS_SUBST_ORDER.items():
+  for medical, simple in ordered:
     pattern = re.compile(re.escape(medical), re.IGNORECASE)
     result = pattern.sub(simple, result)
   return result

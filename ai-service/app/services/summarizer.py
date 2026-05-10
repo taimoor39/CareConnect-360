@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytz
 
+from app.core.constants import MAX_SUMMARIZE_INPUT_CHARS, SUMMARIZATION_MODEL_ID
 from app.schemas.summarize import SummarizeRequest, SummarizeResponse
 from app.services.medical_terms import simplify_medical_terms
 
@@ -25,7 +26,7 @@ def get_summarizer():
       from transformers import pipeline
       _summarizer = pipeline(
         "summarization",
-        model="facebook/bart-large-cnn",
+        model=SUMMARIZATION_MODEL_ID,
         device=-1,
       )
       print(f"[AI] Model loaded in {time.time()-start:.1f}s")
@@ -64,9 +65,8 @@ def summarizer_health_snapshot():
 async def summarize_report(request: SummarizeRequest) -> SummarizeResponse:
   text = request.text.strip()
 
-  max_chars = 3000
-  if len(text) > max_chars:
-    text = text[:max_chars] + "..."
+  if len(text) > MAX_SUMMARIZE_INPUT_CHARS:
+    text = text[:MAX_SUMMARIZE_INPUT_CHARS] + "..."
 
   start = time.time()
   summarizer = get_summarizer()
@@ -84,7 +84,10 @@ async def summarize_report(request: SummarizeRequest) -> SummarizeResponse:
       do_sample=False,
     )
     raw_summary = result[0]['summary_text']
-  simplified_summary = simplify_medical_terms(raw_summary)
+  simplified_summary = simplify_medical_terms(
+    raw_summary,
+    request.extra_medical_terms,
+  )
   generation_ms = int((time.time() - start) * 1000)
   generated_at_pkt = datetime.now(PKT_TZ).strftime("%Y-%m-%d %H:%M:%S")
 

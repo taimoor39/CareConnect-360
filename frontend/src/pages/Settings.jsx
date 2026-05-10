@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 
 import { getAuditLogs } from '../api/audit.js';
@@ -141,23 +140,6 @@ function Settings() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [anyDirty]);
-
-  const blocker = useBlocker(
-    useCallback(
-      ({ currentLocation, nextLocation }) =>
-        anyDirty &&
-        (currentLocation.pathname !== nextLocation.pathname ||
-          currentLocation.search !== nextLocation.search),
-      [anyDirty],
-    ),
-  );
-
-  useEffect(() => {
-    if (blocker.state !== 'blocked') return;
-    const ok = window.confirm('You have unsaved changes. Leave without saving?');
-    if (ok) blocker.proceed();
-    else blocker.reset();
-  }, [blocker]);
 
   const setCategory = (category, nextData) => {
     setFormStates((prev) => ({ ...prev, [category]: { ...prev[category], data: nextData } }));

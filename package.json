@@ -10,7 +10,7 @@
     "dev": "concurrently -n backend,frontend,ai -c green,cyan,magenta \"npm run dev --workspace backend\" \"npm run dev --workspace frontend\" \"npm run dev:ai\"",
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
-    "dev:ai": "ai-service\\venv\\Scripts\\python.exe -m uvicorn main:app --reload --host 0.0.0.0 --port 8001 --app-dir ai-service",
+    "dev:ai": "ai-service\\venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001 --app-dir ai-service",
     "health": "node scripts/health-check.mjs"
   },
   "devDependencies": {

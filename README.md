@@ -229,7 +229,7 @@ Manual run (from `ai-service/`):
 ```powershell
 cd CareConnect360\ai-service
 .\venv\Scripts\Activate.ps1
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8001
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 Quick health check:

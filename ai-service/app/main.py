@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import health, summarize, terms
+from app.api.router import root_router
 from app.core.config import ALLOW_ORIGINS
 
 
@@ -13,9 +13,7 @@ def create_app() -> FastAPI:
     allow_methods=["*"],
     allow_headers=["*"],
   )
-  application.include_router(health.router)
-  application.include_router(summarize.router)
-  application.include_router(terms.router)
+  application.include_router(root_router)
   return application
 
 

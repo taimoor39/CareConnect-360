@@ -14,6 +14,7 @@ import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { dayBoundsInPakistan, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
+import { getMedicalTermsMapForAI } from '../utils/medicalTermsForAI.js';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8001';
 
@@ -280,11 +281,14 @@ export const summarizeDoctorReport = asyncHandler(async (req, res) => {
   const report = await MedicalReport.findOne({ _id: req.params.id, doctorId: req.user._id });
   if (!report) throw AppError.notFound('Report not found');
 
+  const extraMedicalTerms = await getMedicalTermsMapForAI();
+
   let aiResponse;
   if (report.fileType === 'pdf') {
     const formData = new FormData();
     const buffer = Buffer.from(report.pdfBase64, 'base64');
     formData.append('file', new Blob([buffer], { type: report.pdfMimeType || 'application/pdf' }), report.pdfName || 'report.pdf');
+    formData.append('extra_medical_terms_json', JSON.stringify(extraMedicalTerms));
     aiResponse = await fetch(`${AI_SERVICE_URL}/api/summarize-pdf`, {
       method: 'POST',
       body: formData,
@@ -294,7 +298,12 @@ export const summarizeDoctorReport = asyncHandler(async (req, res) => {
     aiResponse = await fetch(`${AI_SERVICE_URL}/api/summarize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: report.originalText, max_length: 200, min_length: 50 }),
+      body: JSON.stringify({
+        text: report.originalText,
+        max_length: 200,
+        min_length: 50,
+        extra_medical_terms: extraMedicalTerms,
+      }),
       signal: AbortSignal.timeout(30000),
     });
   }
