@@ -7,6 +7,7 @@ import Appointment from '../models/Appointment.js';
 import Consultation from '../models/Consultation.js';
 import DoctorProfile from '../models/DoctorProfile.js';
 import Patient from '../models/Patient.js';
+import SystemSettings from '../models/SystemSettings.js';
 import User from '../models/User.js';
 import auditLogger from '../utils/auditLogger.js';
 import { notifyAdmins } from '../realtime/adminRealtime.js';
@@ -466,37 +467,64 @@ export const summarizeConsultationReport = asyncHandler(async (req, res) => {
   if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
 
   const report = consultation.medicalReport;
-  const extraMedicalTerms = await getMedicalTermsMapForAI();
+  const reportText = String(report.originalText || '').trim();
+  if (report.fileType !== 'pdf' && reportText.split(/\s+/).filter(Boolean).length < 15) {
+    throw AppError.badRequest('Report text is too short for summarization');
+  }
+
+  const [adminTerms, settingsRow] = await Promise.all([
+    getMedicalTermsMapForAI(),
+    SystemSettings.findOne({}).select('aiService').lean(),
+  ]);
+  const aiUrl = settingsRow?.aiService?.url || AI_SERVICE_URL;
+  const timeoutMs = (settingsRow?.aiService?.timeoutSeconds || 60) * 1000;
+
+  console.log(`[AI] Sending ${Object.keys(adminTerms).length} admin terms to AI service`);
+
+  const summarizePayload = {
+    text: reportText,
+    target_words: 200,
+    admin_terms: adminTerms,
+    extra_medical_terms: adminTerms,
+  };
 
   let aiResponse;
-  if (report.fileType === 'pdf') {
-    const formData = new FormData();
-    const buffer = Buffer.from(report.pdfBase64, 'base64');
-    formData.append('file', new Blob([buffer], { type: report.pdfMimeType || 'application/pdf' }), report.pdfName || 'report.pdf');
-    formData.append('extra_medical_terms_json', JSON.stringify(extraMedicalTerms));
-    aiResponse = await fetch(`${AI_SERVICE_URL}/api/summarize-pdf`, {
-      method: 'POST',
-      body: formData,
-      signal: AbortSignal.timeout(30000),
-    });
-  } else {
-    aiResponse = await fetch(`${AI_SERVICE_URL}/api/summarize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: report.originalText,
-        max_length: 200,
-        min_length: 50,
-        extra_medical_terms: extraMedicalTerms,
-      }),
-      signal: AbortSignal.timeout(30000),
+  try {
+    if (report.fileType === 'pdf') {
+      const formData = new FormData();
+      const buffer = Buffer.from(report.pdfBase64, 'base64');
+      formData.append('file', new Blob([buffer], { type: report.pdfMimeType || 'application/pdf' }), report.pdfName || 'report.pdf');
+      formData.append('target_words', '200');
+      formData.append('extra_medical_terms_json', JSON.stringify(adminTerms));
+      formData.append('admin_terms_json', JSON.stringify(adminTerms));
+      aiResponse = await fetch(`${aiUrl}/api/summarize-pdf`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } else {
+      aiResponse = await fetch(`${aiUrl}/api/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(summarizePayload),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    }
+  } catch (fetchErr) {
+    const timedOut = fetchErr?.name === 'TimeoutError' || fetchErr?.name === 'AbortError';
+    return res.status(503).json({
+      success: false,
+      message: timedOut
+        ? `AI service timed out after ${timeoutMs / 1000} seconds. The report is saved — try again shortly.`
+        : `AI service unavailable: ${fetchErr.message}. The report is saved — try again later.`,
     });
   }
 
   if (!aiResponse.ok) {
+    const errorData = await aiResponse.json().catch(() => ({}));
     return res.status(503).json({
       success: false,
-      message: 'AI service unavailable. Original report is still accessible.',
+      message: errorData.detail || 'AI service unavailable. Original report is still accessible.',
     });
   }
 
@@ -504,9 +532,13 @@ export const summarizeConsultationReport = asyncHandler(async (req, res) => {
   consultation.medicalReport.summary = {
     simplifiedSummary: aiData.summary,
     status: 'Pending Approval',
-    aiModelUsed: 'facebook/bart-large-cnn',
+    aiModelUsed: aiData.model || 'facebook/bart-large-cnn',
     generationTimeMs: aiData.generation_ms || 0,
     generatedAtPKT: aiData.generated_at_pkt || '',
+    chunksProcessed: aiData.chunks_processed || 1,
+    originalWords: aiData.original_words || 0,
+    summaryWords: aiData.summary_words || 0,
+    replacementsMade: aiData.replacements_made || [],
     approvedBy: null,
     approvedAt: null,
     editedByDoctor: false,
@@ -515,7 +547,14 @@ export const summarizeConsultationReport = asyncHandler(async (req, res) => {
   await consultation.save();
 
   const bundle = toConsultationBundle(consultation);
-  return res.json({ success: true, data: bundle.summary });
+  return res.json({
+    success: true,
+    message: 'Summary generated successfully',
+    data: {
+      ...bundle.summary,
+      adminTermsUsed: Object.keys(adminTerms).length,
+    },
+  });
 });
 
 export const summarizeDoctorReport = summarizeConsultationReport;

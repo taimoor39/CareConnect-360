@@ -26,6 +26,18 @@ const reportSummarySchema = new mongoose.Schema(
     aiModelUsed: { type: String, default: 'facebook/bart-large-cnn' },
     generationTimeMs: { type: Number, default: 0 },
     generatedAtPKT: { type: String, default: '' },
+    chunksProcessed: { type: Number, default: 1 },
+    originalWords: { type: Number, default: 0 },
+    summaryWords: { type: Number, default: 0 },
+    replacementsMade: {
+      type: [
+        {
+          original: { type: String, default: '' },
+          replacement: { type: String, default: '' },
+        },
+      ],
+      default: [],
+    },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     approvedAt: { type: Date, default: null },
     editedByDoctor: { type: Boolean, default: false },
