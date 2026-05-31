@@ -360,34 +360,65 @@ export const registerPatient = asyncHandler(async (req, res) => {
   const year = new Date().getFullYear();
   const patientIdStr = `PAT-${year}-${String(count + 1).padStart(4, '0')}`;
 
-  const patient = await Patient.create({
-    firstName,
-    lastName,
-    name: `${firstName} ${lastName}`.trim(),
-    dateOfBirth,
-    gender: normalizeGender(req.body.gender),
-    phone,
-    email,
-    contact: { phone, email },
-    patientId: patientIdStr,
-    patientCode: patientIdStr,
-    user: user._id,
-    userId: user._id,
-    portalAccessRequested: true,
-    portalAccessEmail: email,
-    portalAccessRequestedAt: new Date(),
-    portalAccessRequestedBy: user._id,
-    portalAccessStatus: 'pending',
-    portalAccessRejectionReason: null,
-  });
+  const existingChart = await Patient.findOne({
+    $and: [
+      { $or: [{ user: null }, { user: { $exists: false } }] },
+      { $or: [{ userId: null }, { userId: { $exists: false } }] },
+      {
+        $or: [{ email }, { 'contact.email': email }, { portalAccessEmail: email }],
+      },
+    ],
+  }).sort({ updatedAt: -1 });
 
-  await PortalAccessRequest.create({
-    patientId: patient._id,
-    requestedEmail: email,
-    requestedBy: user._id,
-    status: 'pending',
-    createdUserId: user._id,
-  });
+  let patient;
+  if (existingChart) {
+    existingChart.user = user._id;
+    existingChart.userId = user._id;
+    existingChart.portalAccessRequested = true;
+    existingChart.portalAccessEmail = email;
+    existingChart.portalAccessRequestedAt = new Date();
+    existingChart.portalAccessRequestedBy = user._id;
+    existingChart.portalAccessStatus = 'pending';
+    existingChart.portalAccessRejectionReason = null;
+    if (firstName) existingChart.firstName = firstName;
+    if (lastName) existingChart.lastName = lastName;
+    existingChart.name = `${existingChart.firstName} ${existingChart.lastName}`.trim();
+    if (phone) existingChart.phone = phone;
+    await existingChart.save();
+    patient = existingChart;
+  } else {
+    patient = await Patient.create({
+      firstName,
+      lastName,
+      name: `${firstName} ${lastName}`.trim(),
+      dateOfBirth,
+      gender: normalizeGender(req.body.gender),
+      phone,
+      email,
+      contact: { phone, email },
+      patientId: patientIdStr,
+      patientCode: patientIdStr,
+      user: user._id,
+      userId: user._id,
+      portalAccessRequested: true,
+      portalAccessEmail: email,
+      portalAccessRequestedAt: new Date(),
+      portalAccessRequestedBy: user._id,
+      portalAccessStatus: 'pending',
+      portalAccessRejectionReason: null,
+    });
+  }
+
+  const pendingRequest = await PortalAccessRequest.findOne({ patientId: patient._id, status: 'pending' });
+  if (!pendingRequest) {
+    await PortalAccessRequest.create({
+      patientId: patient._id,
+      requestedEmail: email,
+      requestedBy: user._id,
+      status: 'pending',
+      createdUserId: user._id,
+    });
+  }
 
   await auditLogger({
     userId: user._id,

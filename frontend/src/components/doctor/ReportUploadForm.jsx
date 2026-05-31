@@ -4,15 +4,23 @@ function bytesToMb(bytes = 0) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function ReportUploadForm({ patientId, appointmentId, onUpload, uploading = false }) {
-  const [mode, setMode] = useState('pdf');
-  const [title, setTitle] = useState('');
-  const [text, setText] = useState('');
-  const [file, setFile] = useState(null);
+function ReportUploadForm({
+  patientId,
+  mode,
+  onModeChange,
+  title,
+  onTitleChange,
+  text,
+  onTextChange,
+  file,
+  onFileChange,
+  onUpload,
+  uploading = false,
+  showSubmitButton = true,
+}) {
   const [error, setError] = useState('');
-
   const textCount = text.length;
-  const textValid = textCount >= 100 && textCount <= 10000;
+  const textValid = textCount >= 10 && textCount <= 10000;
   const canSubmit = useMemo(() => {
     if (!title.trim() || title.trim().length < 2) return false;
     if (!patientId) return false;
@@ -31,21 +39,19 @@ function ReportUploadForm({ patientId, appointmentId, onUpload, uploading = fals
       return;
     }
     setError('');
-    setFile(nextFile);
+    onFileChange(nextFile);
   };
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
     if (!canSubmit) {
-      setError(mode === 'text' ? 'Report too short for summarization' : 'Please complete required fields');
+      setError(mode === 'text' ? 'Report text must be at least 10 characters' : 'Please complete required fields');
       return;
     }
-    await onUpload({
+    await onUpload?.({
       mode,
       title: title.trim(),
-      patientId,
-      appointmentId,
       originalText: text,
       file,
     });
@@ -53,15 +59,24 @@ function ReportUploadForm({ patientId, appointmentId, onUpload, uploading = fals
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <h3 className="text-base font-semibold text-white">Upload Medical Report</h3>
+      <h3 className="text-base font-semibold text-white">Medical Report</h3>
       <div className="flex flex-wrap gap-3 text-sm">
-        <label className="flex items-center gap-2"><input type="radio" checked={mode === 'pdf'} onChange={() => setMode('pdf')} /> Upload PDF</label>
-        <label className="flex items-center gap-2"><input type="radio" checked={mode === 'text'} onChange={() => setMode('text')} /> Enter Text Directly</label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === 'text'} onChange={() => onModeChange('text')} /> Enter Text Directly
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" checked={mode === 'pdf'} onChange={() => onModeChange('pdf')} /> Upload PDF
+        </label>
       </div>
 
       <label className="block text-xs text-slate-300">
         Report Title *
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Blood Test Report" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
+        <input
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Blood Test Report"
+          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100"
+        />
       </label>
 
       {mode === 'pdf' ? (
@@ -73,35 +88,37 @@ function ReportUploadForm({ patientId, appointmentId, onUpload, uploading = fals
           {file ? (
             <div className="mt-3 flex items-center justify-between rounded-md border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs">
               <span>{file.name} ({bytesToMb(file.size)})</span>
-              <button type="button" onClick={() => setFile(null)} className="text-rose-300">Clear</button>
+              <button type="button" onClick={() => onFileChange(null)} className="text-rose-300">Clear</button>
             </div>
           ) : null}
+          <p className="mt-2 text-xs text-slate-500">PDF is saved when you click Save Draft or Mark Complete.</p>
         </div>
       ) : (
         <div>
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => onTextChange(e.target.value)}
             className="min-h-[200px] w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100"
             placeholder="Paste or type the medical report text here..."
             maxLength={10000}
           />
-          <p className="mt-1 text-xs text-slate-400">{textCount} / 10,000 characters</p>
+          <p className="mt-1 text-xs text-slate-400">{textCount} / 10,000 characters · saved with Save Draft</p>
         </div>
       )}
 
       {error ? <p className="text-xs text-rose-300">{error}</p> : null}
 
-      <button
-        type="submit"
-        disabled={!canSubmit || uploading}
-        className="rounded-md border border-teal-300/25 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100 disabled:opacity-50"
-      >
-        {uploading ? 'Uploading...' : 'Upload Report'}
-      </button>
+      {showSubmitButton ? (
+        <button
+          type="submit"
+          disabled={!canSubmit || uploading}
+          className="rounded-md border border-teal-300/25 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100 disabled:opacity-50"
+        >
+          {uploading ? 'Uploading...' : 'Upload Report Only'}
+        </button>
+      ) : null}
     </form>
   );
 }
 
 export default ReportUploadForm;
-

@@ -218,7 +218,10 @@ export const createPatient = asyncHandler(async (req, res) => {
 
   const payload = buildPayload(req.body, req.user._id);
   const createData = { ...payload, patientId, patientCode: patientId };
-  if (linkedUserId) createData.user = linkedUserId;
+  if (linkedUserId) {
+    createData.user = linkedUserId;
+    createData.userId = linkedUserId;
+  }
   if (wantsPortalAccess && !linkedUserId) {
     createData.portalAccessRequested = true;
     createData.portalAccessEmail = portalAccessEmail;

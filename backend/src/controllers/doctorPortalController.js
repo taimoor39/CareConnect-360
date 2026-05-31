@@ -1,17 +1,12 @@
 /**
  * Doctor portal API (/api/doctor/*) — scoped by JWT to the logged-in doctor.
  *
- * Medical reports: upload stores PDF or text; summarization calls the Python AI service
- * (see summarizeDoctorReport) which runs BART + medical term simplification (Mongo terms included).
- * Summaries stay Pending until the doctor approves — then patients see them in /api/patient.
+ * Consultation document embeds notes, prescription items, and medical report (+ AI summary).
  */
 import Appointment from '../models/Appointment.js';
 import Consultation from '../models/Consultation.js';
 import DoctorProfile from '../models/DoctorProfile.js';
-import MedicalReport from '../models/MedicalReport.js';
 import Patient from '../models/Patient.js';
-import Prescription from '../models/Prescription.js';
-import ReportSummary from '../models/ReportSummary.js';
 import User from '../models/User.js';
 import auditLogger from '../utils/auditLogger.js';
 import { notifyAdmins } from '../realtime/adminRealtime.js';
@@ -19,13 +14,18 @@ import { getSettings, sendEngagementEmail } from '../utils/emailService.js';
 import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js';
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
-import { dayBoundsInPakistan, todayBoundsInPakistan } from '../utils/dateTime.js';
+import {
+  toConsultationBundle,
+  toDoctorReportRow,
+  toPrescriptionRow,
+} from '../utils/consultationHelpers.js';
+import { dayBoundsInPakistan, todayBoundsInPakistan, toPakistanISODate } from '../utils/dateTime.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
 import { getMedicalTermsMapForAI } from '../utils/medicalTermsForAI.js';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8001';
 
-const sendSummaryReadyNotification = async (patient, report, settings) => {
+const sendSummaryReadyNotification = async (patient, reportTitle, settings) => {
   try {
     if (!settings?.email?.smtpHost) return;
     if (!patient?.email) return;
@@ -39,7 +39,7 @@ const sendSummaryReadyNotification = async (patient, report, settings) => {
     const clinicName = settings?.clinic?.name || 'CareConnect 360';
     const variables = {
       patientName: patient.name,
-      reportTitle: report?.title || 'Medical Report',
+      reportTitle: reportTitle || 'Medical Report',
       clinicName,
       portalLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/patient/reports`,
     };
@@ -56,7 +56,7 @@ const sendSummaryReadyNotification = async (patient, report, settings) => {
       patientId: patient._id,
       ruleId: 'ER-5',
       type: 'summary_available',
-      message: `Summary ready notification sent for report: ${report?.title || 'Untitled'}`,
+      message: `Summary ready notification sent for report: ${reportTitle || 'Untitled'}`,
       status: 'Sent',
     });
   } catch (err) {
@@ -77,12 +77,97 @@ const ensureDoctorOwnsAppointment = async (doctorId, appointmentId) => {
   return appointment;
 };
 
-const summaryStatusForReport = async (reportIds) => {
-  const summaries = await ReportSummary.find({ reportId: { $in: reportIds } })
-    .select('reportId status')
-    .lean();
-  const map = new Map(summaries.map((s) => [String(s.reportId), s.status]));
-  return map;
+const findConsultationByAppointment = (doctorId, appointmentId) =>
+  Consultation.findOne({ appointmentId, doctorId });
+
+const ensureConsultationForAppointment = async (doctorId, appointment, seed = {}) => {
+  let consultation = await findConsultationByAppointment(doctorId, appointment._id);
+  if (!consultation) {
+    consultation = await Consultation.create({
+      appointmentId: appointment._id,
+      doctorId,
+      patientId: appointment.patientId,
+      isDraft: true,
+      ...seed,
+    });
+  }
+  return consultation;
+};
+
+const maybeCompleteAppointment = async (appointment, isDraft) => {
+  if (isDraft !== false || !appointment) return;
+  if (appointment.status === 'Checked-In') appointment.status = 'In-Progress';
+  else if (appointment.status === 'In-Progress') appointment.status = 'Completed';
+  await appointment.save();
+  notifyAdmins({ scopes: ['dashboard'], reason: 'consultation_completed' });
+};
+
+const applyConsultationFields = (consultation, body) => {
+  ['symptoms', 'diagnosis', 'consultationNotes', 'followUpDate', 'isDraft'].forEach((k) => {
+    if (body[k] !== undefined) consultation[k] = body[k];
+  });
+  if (body.prescription?.items) {
+    consultation.prescription = { items: body.prescription.items };
+    consultation.markModified('prescription');
+  }
+  if (body.medicalReport?.title) {
+    const existing = consultation.medicalReport?.toObject?.() || consultation.medicalReport || {};
+    const incoming = body.medicalReport;
+    const fileType = incoming.fileType === 'pdf' || existing.fileType === 'pdf' ? 'pdf' : 'text';
+    const originalText =
+      fileType === 'pdf'
+        ? String(existing.originalText || '')
+        : String(incoming.originalText || existing.originalText || '').trim();
+
+    consultation.set('medicalReport', {
+      title: String(incoming.title || existing.title || '').trim(),
+      fileType,
+      originalText,
+      pdfName: incoming.pdfName || existing.pdfName || '',
+      pdfMimeType: incoming.pdfMimeType || existing.pdfMimeType || '',
+      pdfSizeBytes: incoming.pdfSizeBytes || existing.pdfSizeBytes || 0,
+      pdfBase64: incoming.pdfBase64 || existing.pdfBase64 || '',
+      uploadedAt: existing.uploadedAt || new Date(),
+      summary:
+        existing.summary?.status && existing.summary.status !== 'Not Generated'
+          ? existing.summary
+          : { status: 'Not Generated' },
+    });
+    consultation.markModified('medicalReport');
+  }
+};
+
+const applyPdfMedicalReport = (consultation, file, title) => {
+  if (!file) return;
+  consultation.set('medicalReport', {
+    title: String(title || consultation.medicalReport?.title || 'Medical Report').trim(),
+    fileType: 'pdf',
+    originalText: '',
+    pdfName: file.originalname || '',
+    pdfMimeType: file.mimetype || '',
+    pdfSizeBytes: file.size || 0,
+    pdfBase64: file.buffer.toString('base64'),
+    uploadedAt: new Date(),
+    summary: { status: 'Not Generated' },
+  });
+  consultation.markModified('medicalReport');
+};
+
+const followUpIsoDate = (value) => {
+  if (value === null || value === undefined || value === '') return '';
+  return String(value).slice(0, 10);
+};
+
+const assertFollowUpChangedIsFuture = (consultation, incomingFollowUpDate) => {
+  const incoming = followUpIsoDate(incomingFollowUpDate);
+  if (!incoming) return;
+  const existing = consultation.followUpDate
+    ? toPakistanISODate(new Date(consultation.followUpDate))
+    : '';
+  if (incoming === existing) return;
+  if (incoming <= toPakistanISODate(new Date())) {
+    throw AppError.badRequest('Follow-up date must be in the future');
+  }
 };
 
 export const getDoctorDashboardStats = asyncHandler(async (req, res) => {
@@ -91,15 +176,22 @@ export const getDoctorDashboardStats = asyncHandler(async (req, res) => {
   const todayBounds = todayBoundsInPakistan();
   const todayStart = todayBounds?.start || new Date();
   const todayEnd = todayBounds?.end || new Date();
-  const weekStart = new Date(todayStart); weekStart.setDate(todayStart.getDate() - ((todayStart.getDay() + 6) % 7));
-  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23, 59, 59, 999);
+  const weekStart = new Date(todayStart);
+  weekStart.setDate(todayStart.getDate() - ((todayStart.getDay() + 6) % 7));
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
 
   const [todayCount, weekCount, upcomingCount, doctorAppointments, pendingSummaries] = await Promise.all([
     Appointment.countDocuments({ doctorId, date: { $gte: todayStart, $lte: todayEnd } }),
     Appointment.countDocuments({ doctorId, date: { $gte: weekStart, $lte: weekEnd } }),
     Appointment.countDocuments({ doctorId, date: { $gt: now }, status: { $in: ['Scheduled', 'Checked-In', 'In-Progress'] } }),
     Appointment.find({ doctorId }).select('patientId').lean(),
-    ReportSummary.countDocuments({ doctorId, status: 'Pending Approval' }),
+    Consultation.countDocuments({
+      doctorId,
+      'medicalReport.title': { $nin: [null, ''] },
+      'medicalReport.summary.status': 'Pending Approval',
+    }),
   ]);
 
   const totalPatients = new Set(doctorAppointments.map((a) => String(a.patientId))).size;
@@ -145,16 +237,22 @@ export const getDoctorPatientDetail = asyncHandler(async (req, res) => {
   const patient = await Patient.findById(req.params.patientId).lean();
   if (!patient) throw AppError.notFound('Patient not found');
 
-  const [visitHistory, reports, prescriptions] = await Promise.all([
+  const [visitHistory, consultations] = await Promise.all([
     Appointment.find({ doctorId: req.user._id, patientId: req.params.patientId }).sort({ date: -1, timeSlot: -1 }).lean(),
-    MedicalReport.find({ doctorId: req.user._id, patientId: req.params.patientId }).sort({ createdAt: -1 }).lean(),
-    Prescription.find({ doctorId: req.user._id, patientId: req.params.patientId }).sort({ createdAt: -1 }).lean(),
+    Consultation.find({ doctorId: req.user._id, patientId: req.params.patientId })
+      .populate('appointmentId', 'date timeSlot status')
+      .sort({ updatedAt: -1 })
+      .lean(),
   ]);
 
-  const statusMap = await summaryStatusForReport(reports.map((r) => r._id));
-  const reportsWithStatus = reports.map((r) => ({ ...r, summaryStatus: statusMap.get(String(r._id)) || 'Not Generated' }));
+  const reports = consultations
+    .filter((c) => c.medicalReport?.title)
+    .map((c) => toDoctorReportRow(c, patient));
+  const prescriptions = consultations
+    .filter((c) => c.prescription?.items?.length)
+    .map((c) => toPrescriptionRow(c, { patient, appointment: c.appointmentId }));
 
-  res.json({ success: true, data: { patient, visitHistory, reports: reportsWithStatus, prescriptions } });
+  res.json({ success: true, data: { patient, visitHistory, reports, prescriptions } });
 });
 
 export const getDoctorConsultations = asyncHandler(async (req, res) => {
@@ -165,91 +263,148 @@ export const getDoctorConsultations = asyncHandler(async (req, res) => {
   res.json({ success: true, data: rows });
 });
 
-export const createConsultation = asyncHandler(async (req, res) => {
-  const appointment = await ensureDoctorOwnsAppointment(req.user._id, req.body.appointmentId);
-  const { symptoms = '', diagnosis = '', consultationNotes, followUpDate = null, isDraft = false } = req.body;
+/** GET /api/doctor/appointments/:appointmentId/consultation */
+export const getAppointmentConsultationBundle = asyncHandler(async (req, res) => {
+  await ensureDoctorOwnsAppointment(req.user._id, req.params.appointmentId);
+  const consultation = await findConsultationByAppointment(req.user._id, req.params.appointmentId).lean();
+  res.json({ success: true, data: toConsultationBundle(consultation) });
+});
 
-  const existing = await Consultation.findOne({ appointmentId: appointment._id });
-  if (existing) throw AppError.conflict('Consultation already exists for this appointment');
+/** PUT /api/doctor/appointments/:appointmentId/consultation — notes + prescription + medical report */
+export const upsertConsultationByAppointment = asyncHandler(async (req, res) => {
+  const appointment = await ensureDoctorOwnsAppointment(req.user._id, req.params.appointmentId);
+  const body = req.parsedConsultationBody || req.body;
+  const isDraft = body.isDraft !== undefined ? Boolean(body.isDraft) : undefined;
 
-  const consultation = await Consultation.create({
-    appointmentId: appointment._id,
-    doctorId: req.user._id,
-    patientId: appointment.patientId,
-    symptoms,
-    diagnosis,
-    consultationNotes,
-    followUpDate,
-    isDraft: Boolean(isDraft),
-  });
-
-  if (!isDraft) {
-    if (appointment.status === 'Checked-In') appointment.status = 'In-Progress';
-    else if (appointment.status === 'In-Progress') appointment.status = 'Completed';
-    await appointment.save();
-    notifyAdmins({ scopes: ['dashboard'], reason: 'consultation_completed' });
+  let consultation = await findConsultationByAppointment(req.user._id, appointment._id);
+  if (!consultation) {
+    consultation = new Consultation({
+      appointmentId: appointment._id,
+      doctorId: req.user._id,
+      patientId: appointment.patientId,
+      isDraft: isDraft !== undefined ? isDraft : true,
+    });
   }
 
-  res.status(201).json({ success: true, data: consultation });
+  if (body.followUpDate !== undefined) {
+    assertFollowUpChangedIsFuture(consultation, body.followUpDate);
+  }
+
+  if (req.file) {
+    if (String(req.file.mimetype || '').toLowerCase() !== 'application/pdf') {
+      throw AppError.badRequest('Only PDF files are accepted');
+    }
+    if (req.file.size > 10 * 1024 * 1024) {
+      throw AppError.badRequest('File too large (max 10MB)');
+    }
+    applyPdfMedicalReport(consultation, req.file, body.medicalReport?.title);
+  }
+
+  applyConsultationFields(consultation, body);
+  if (isDraft === undefined && appointment.status === 'Completed' && consultation.isDraft === false) {
+    consultation.isDraft = false;
+  }
+  await consultation.save();
+
+  if (isDraft === false) {
+    await maybeCompleteAppointment(appointment, false);
+  }
+
+  const saved = await Consultation.findById(consultation._id).lean();
+  res.json({ success: true, data: toConsultationBundle(saved) });
+});
+
+export const createConsultation = asyncHandler(async (req, res) => {
+  const appointment = await ensureDoctorOwnsAppointment(req.user._id, req.body.appointmentId);
+  const isDraft = req.body.isDraft !== undefined ? Boolean(req.body.isDraft) : true;
+
+  let consultation = await findConsultationByAppointment(req.user._id, appointment._id);
+  const isNewRecord = !consultation;
+  if (!consultation) {
+    consultation = new Consultation({
+      appointmentId: appointment._id,
+      doctorId: req.user._id,
+      patientId: appointment.patientId,
+      isDraft,
+    });
+  }
+
+  applyConsultationFields(consultation, req.body);
+  await consultation.save();
+
+  if (isDraft === false) {
+    await maybeCompleteAppointment(appointment, false);
+  }
+
+  res.status(isNewRecord ? 201 : 200).json({ success: true, data: toConsultationBundle(consultation) });
 });
 
 export const updateConsultation = asyncHandler(async (req, res) => {
   const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
   if (!consultation) throw AppError.notFound('Consultation not found');
 
-  ['symptoms', 'diagnosis', 'consultationNotes', 'followUpDate', 'isDraft'].forEach((k) => {
-    if (req.body[k] !== undefined) consultation[k] = req.body[k];
-  });
+  applyConsultationFields(consultation, req.body);
   await consultation.save();
 
   const appointment = await Appointment.findOne({ _id: consultation.appointmentId, doctorId: req.user._id });
-  if (appointment && req.body.isDraft === false) {
-    if (appointment.status === 'Checked-In') appointment.status = 'In-Progress';
-    else if (appointment.status === 'In-Progress') appointment.status = 'Completed';
-    await appointment.save();
-    notifyAdmins({ scopes: ['dashboard'], reason: 'consultation_completed' });
+  if (req.body.isDraft === false) {
+    await maybeCompleteAppointment(appointment, false);
   }
 
-  res.json({ success: true, data: consultation });
+  res.json({ success: true, data: toConsultationBundle(consultation) });
 });
 
-export const createPrescription = asyncHandler(async (req, res) => {
-  const consultation = await Consultation.findOne({ _id: req.body.consultationId, doctorId: req.user._id }).lean();
+/** POST /api/doctor/prescriptions — saves items on the consultation document */
+export const saveConsultationPrescription = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({ _id: req.body.consultationId, doctorId: req.user._id });
   if (!consultation) throw AppError.forbidden('Consultation not found for this doctor');
   if (String(consultation.patientId) !== String(req.body.patientId)) {
     throw AppError.badRequest('Patient does not match consultation');
   }
 
-  const prescription = await Prescription.create({
-    consultationId: req.body.consultationId,
-    doctorId: req.user._id,
-    patientId: req.body.patientId,
-    items: req.body.items,
+  consultation.prescription = { items: req.body.items };
+  consultation.markModified('prescription');
+  await consultation.save();
+
+  res.json({
+    success: true,
+    data: toPrescriptionRow(consultation),
   });
-  res.status(201).json({ success: true, data: prescription });
+});
+
+export const getDoctorPrescriptions = asyncHandler(async (req, res) => {
+  const rows = await Consultation.find({
+    doctorId: req.user._id,
+    'prescription.items.0': { $exists: true },
+  })
+    .populate('patientId', 'name patientId patientCode')
+    .populate('appointmentId', 'date timeSlot status')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  res.json({
+    success: true,
+    data: rows.map((c) => toPrescriptionRow(c)),
+  });
 });
 
 export const getDoctorReports = asyncHandler(async (req, res) => {
-  const query = { doctorId: req.user._id };
+  const query = {
+    doctorId: req.user._id,
+    'medicalReport.title': { $nin: [null, ''] },
+  };
   if (req.query.patientId) query.patientId = req.query.patientId;
-  const reports = await MedicalReport.find(query)
+
+  const rows = await Consultation.find(query)
     .populate('patientId', 'name patientId patientCode')
-    .sort({ createdAt: -1 })
+    .sort({ 'medicalReport.uploadedAt': -1, updatedAt: -1 })
     .lean();
-  const summaries = await ReportSummary.find({ reportId: { $in: reports.map((r) => r._id) } }).lean();
-  const summaryMap = new Map(summaries.map((s) => [String(s.reportId), s]));
-  const data = reports.map((r) => {
-    const summary = summaryMap.get(String(r._id));
-    return {
-      ...r,
-      summaryStatus: summary?.status || 'Not Generated',
-      summary: summary || null,
-    };
-  });
-  res.json({ success: true, data });
+
+  res.json({ success: true, data: rows.map((c) => toDoctorReportRow(c)) });
 });
 
-export const uploadDoctorReport = asyncHandler(async (req, res) => {
+/** POST /api/doctor/appointments/:appointmentId/consultation/medical-report */
+export const uploadConsultationMedicalReport = asyncHandler(async (req, res) => {
   const file = req.file;
   if (file) {
     if (String(file.mimetype || '').toLowerCase() !== 'application/pdf') {
@@ -260,34 +415,57 @@ export const uploadDoctorReport = asyncHandler(async (req, res) => {
     }
   }
 
-  const appointmentId = req.body.appointmentId || null;
-  if (appointmentId) await ensureDoctorOwnsAppointment(req.user._id, appointmentId);
+  const appointment = await ensureDoctorOwnsAppointment(req.user._id, req.params.appointmentId);
+  const consultation = await ensureConsultationForAppointment(req.user._id, appointment);
 
-  const payload = {
-    doctorId: req.user._id,
-    patientId: req.body.patientId,
-    appointmentId,
-    title: req.body.title,
+  const bodyPatientId = String(req.body.patientId || '').trim();
+  if (bodyPatientId && String(appointment.patientId) !== bodyPatientId) {
+    throw AppError.badRequest('Patient does not match appointment');
+  }
+
+  const originalText = file ? '' : String(req.body.originalText || '').trim();
+  if (!file && originalText.length < 100) {
+    throw AppError.badRequest('Report too short (min 100 characters)');
+  }
+
+  consultation.set('medicalReport', {
+    title: String(req.body.title || '').trim(),
     fileType: file ? 'pdf' : 'text',
-    originalText: file ? '' : String(req.body.originalText || '').trim(),
+    originalText,
     pdfName: file?.originalname || '',
     pdfMimeType: file?.mimetype || '',
     pdfSizeBytes: file?.size || 0,
     pdfBase64: file ? file.buffer.toString('base64') : '',
-  };
+    uploadedAt: new Date(),
+    summary: { status: 'Not Generated' },
+  });
+  consultation.markModified('medicalReport');
+  await consultation.save();
 
-  if (!file && payload.originalText.length < 100) {
-    throw AppError.badRequest('Report too short (min 100 characters)');
-  }
-
-  const report = await MedicalReport.create(payload);
-  res.status(201).json({ success: true, message: 'Report uploaded successfully', data: report });
+  const saved = await Consultation.findById(consultation._id).lean();
+  res.status(201).json({
+    success: true,
+    message: 'Report uploaded successfully',
+    data: toConsultationBundle(saved),
+  });
 });
 
-export const summarizeDoctorReport = asyncHandler(async (req, res) => {
-  const report = await MedicalReport.findOne({ _id: req.params.id, doctorId: req.user._id });
-  if (!report) throw AppError.notFound('Report not found');
+/** Legacy POST /api/doctor/reports — requires appointmentId */
+export const uploadDoctorReport = asyncHandler(async (req, res) => {
+  const rawAppointmentId = String(req.body.appointmentId || '').trim();
+  if (!rawAppointmentId || rawAppointmentId === 'undefined') {
+    throw AppError.badRequest('appointmentId is required to attach a report to a consultation');
+  }
+  req.params.appointmentId = rawAppointmentId;
+  return uploadConsultationMedicalReport(req, res);
+});
 
+/** POST /api/doctor/consultations/:id/medical-report/summarize (id = consultation id) */
+export const summarizeConsultationReport = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
+  if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
+
+  const report = consultation.medicalReport;
   const extraMedicalTerms = await getMedicalTermsMapForAI();
 
   let aiResponse;
@@ -323,34 +501,31 @@ export const summarizeDoctorReport = asyncHandler(async (req, res) => {
   }
 
   const aiData = await aiResponse.json();
-  const summary = await ReportSummary.findOneAndUpdate(
-    { reportId: report._id },
-    {
-      reportId: report._id,
-      doctorId: req.user._id,
-      patientId: report.patientId,
-      originalText: report.originalText,
-      simplifiedSummary: aiData.summary,
-      status: 'Pending Approval',
-      aiModelUsed: 'facebook/bart-large-cnn',
-      generationTimeMs: aiData.generation_ms || 0,
-      generatedAtPKT: aiData.generated_at_pkt || '',
-      approvedBy: null,
-      approvedAt: null,
-      editedByDoctor: false,
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+  consultation.medicalReport.summary = {
+    simplifiedSummary: aiData.summary,
+    status: 'Pending Approval',
+    aiModelUsed: 'facebook/bart-large-cnn',
+    generationTimeMs: aiData.generation_ms || 0,
+    generatedAtPKT: aiData.generated_at_pkt || '',
+    approvedBy: null,
+    approvedAt: null,
+    editedByDoctor: false,
+  };
+  consultation.markModified('medicalReport');
+  await consultation.save();
 
-  return res.json({ success: true, data: summary });
+  const bundle = toConsultationBundle(consultation);
+  return res.json({ success: true, data: bundle.summary });
 });
 
-export const approveDoctorSummary = asyncHandler(async (req, res) => {
-  const report = await MedicalReport.findOne({ _id: req.params.id, doctorId: req.user._id });
-  if (!report) throw AppError.notFound('Report not found');
+export const summarizeDoctorReport = summarizeConsultationReport;
 
-  const summary = await ReportSummary.findOne({ _id: req.body.summaryId, reportId: report._id, doctorId: req.user._id });
-  if (!summary) throw AppError.notFound('Summary not found');
+export const approveConsultationSummary = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
+  if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
+
+  const summary = consultation.medicalReport.summary;
+  if (!summary || summary.status === 'Not Generated') throw AppError.notFound('Summary not found');
 
   const editedSummary = String(req.body.editedSummary || '').trim();
   if (req.body.editedSummary !== undefined && editedSummary.length < 20) {
@@ -368,28 +543,36 @@ export const approveDoctorSummary = asyncHandler(async (req, res) => {
   summary.status = 'Approved';
   summary.approvedBy = req.user._id;
   summary.approvedAt = new Date();
-  await summary.save();
+  consultation.markModified('medicalReport');
+  await consultation.save();
 
   const [settings, patient] = await Promise.all([
     getSettings(),
-    Patient.findById(report.patientId).select('name email').lean(),
+    Patient.findById(consultation.patientId).select('name email').lean(),
   ]);
-  sendSummaryReadyNotification(patient, report, settings).catch(() => {});
+  sendSummaryReadyNotification(patient, consultation.medicalReport.title, settings).catch(() => {});
 
   res.json({ success: true, message: 'Summary approved and visible to patient', data: summary });
 });
 
-export const rejectDoctorSummary = asyncHandler(async (req, res) => {
-  const report = await MedicalReport.findOne({ _id: req.params.id, doctorId: req.user._id }).lean();
-  if (!report) throw AppError.notFound('Report not found');
+export const approveDoctorSummary = approveConsultationSummary;
 
-  const summary = await ReportSummary.findOne({ reportId: report._id, doctorId: req.user._id });
-  if (!summary) throw AppError.notFound('Summary not found');
-  summary.status = 'Rejected';
-  await summary.save();
+export const rejectConsultationSummary = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
+  if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
 
-  res.json({ success: true, message: 'Summary rejected', data: summary });
+  if (!consultation.medicalReport.summary) {
+    consultation.medicalReport.summary = { status: 'Rejected' };
+  } else {
+    consultation.medicalReport.summary.status = 'Rejected';
+  }
+  consultation.markModified('medicalReport');
+  await consultation.save();
+
+  res.json({ success: true, message: 'Summary rejected', data: consultation.medicalReport.summary });
 });
+
+export const rejectDoctorSummary = rejectConsultationSummary;
 
 export const getDoctorProfile = asyncHandler(async (req, res) => {
   const userId = req.user._id;

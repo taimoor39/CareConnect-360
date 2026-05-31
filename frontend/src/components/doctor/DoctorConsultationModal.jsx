@@ -1,15 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { getAppointmentById, updateAppointmentStatus } from '../../api/appointments.js';
 import {
   approveAISummary,
-  createConsultation,
-  createPrescription,
   generateAISummary,
+  getAppointmentConsultation,
   rejectAISummary,
-  updateConsultation,
-  uploadReport,
-  uploadReportPDF,
+  upsertAppointmentConsultation,
 } from '../../api/doctor.js';
 import AISummaryReview from './AISummaryReview.jsx';
 import PrescriptionForm from './PrescriptionForm.jsx';
@@ -18,7 +15,23 @@ import { formatDateInPakistan, parseLocalDateFromISO, toISOInputValue } from '..
 
 const emptyMedicine = { medicineName: '', dosage: '', frequency: 'Once daily', duration: '', instructions: '' };
 
-function DoctorConsultationModal({ open, appointment, doctorName, readOnly = false, onClose, onSaved }) {
+function resolvePatientId(appointment) {
+  const patient = appointment?.patientId;
+  if (!patient) return undefined;
+  if (typeof patient === 'object' && patient._id) return patient._id;
+  return patient;
+}
+
+function apiErrorMessage(error, fallback) {
+  const data = error?.response?.data;
+  if (data?.message) return data.message;
+  if (Array.isArray(data?.errors) && data.errors.length) {
+    return data.errors.map((e) => e.message).join(' · ');
+  }
+  return fallback;
+}
+
+function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSaved }) {
   const [activeTab, setActiveTab] = useState('notes');
   const [symptoms, setSymptoms] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -26,12 +39,19 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
   const [followUpDate, setFollowUpDate] = useState('');
   const [consultationId, setConsultationId] = useState('');
   const [medicines, setMedicines] = useState([{ ...emptyMedicine }]);
+  const [reportMode, setReportMode] = useState('text');
+  const [reportTitle, setReportTitle] = useState('');
+  const [reportText, setReportText] = useState('');
+  const [reportFile, setReportFile] = useState(null);
   const [report, setReport] = useState(null);
   const [summary, setSummary] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [uploadingReport, setUploadingReport] = useState(false);
   const [showUnavailableBanner, setShowUnavailableBanner] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [loadingBundle, setLoadingBundle] = useState(false);
+  const loadGenerationRef = useRef(0);
 
   const tomorrow = useMemo(() => {
     const dt = new Date();
@@ -39,7 +59,82 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
     return toISOInputValue(dt);
   }, []);
 
+  const applyBundle = useCallback((data) => {
+    const { consultation, prescription, report: savedReport, summary: savedSummary } = data || {};
+
+    if (consultation) {
+      setConsultationId(String(consultation._id || ''));
+      setSymptoms(consultation.symptoms || '');
+      setDiagnosis(consultation.diagnosis || '');
+      setNotes(consultation.consultationNotes || '');
+      setFollowUpDate(
+        consultation.followUpDate ? toISOInputValue(new Date(consultation.followUpDate)) : '',
+      );
+    } else {
+      setConsultationId('');
+      setSymptoms('');
+      setDiagnosis('');
+      setNotes('');
+      setFollowUpDate('');
+    }
+
+    if (prescription?.items?.length) {
+      setMedicines(
+        prescription.items.map((item) => ({
+          medicineName: item.medicineName || '',
+          dosage: item.dosage || '',
+          frequency: item.frequency || 'Once daily',
+          duration: item.duration || '',
+          instructions: item.instructions || '',
+        })),
+      );
+    } else {
+      setMedicines([{ ...emptyMedicine }]);
+    }
+
+    setReport(savedReport || null);
+    setSummary(savedSummary || null);
+    if (savedReport?.title) {
+      setReportTitle(savedReport.title);
+      setReportMode(savedReport.fileType === 'pdf' ? 'pdf' : 'text');
+      if (savedReport.fileType === 'text' && savedReport.originalText) {
+        setReportText(savedReport.originalText);
+      }
+      setReportFile(null);
+    }
+    setShowUnavailableBanner(false);
+  }, []);
+
+  const refreshBundle = useCallback(async () => {
+    if (!appointment?._id) return;
+    const generation = ++loadGenerationRef.current;
+    setLoadingBundle(true);
+    try {
+      const res = await getAppointmentConsultation(appointment._id);
+      if (generation !== loadGenerationRef.current) return;
+      applyBundle(res.data?.data);
+    } catch {
+      if (generation === loadGenerationRef.current) {
+        toast.error('Could not load saved consultation data');
+      }
+    } finally {
+      if (generation === loadGenerationRef.current) {
+        setLoadingBundle(false);
+      }
+    }
+  }, [appointment?._id, applyBundle]);
+
+  useEffect(() => {
+    if (!open || !appointment?._id) return undefined;
+    refreshBundle();
+    return () => {
+      loadGenerationRef.current += 1;
+    };
+  }, [open, appointment?._id, refreshBundle]);
+
   if (!open || !appointment) return null;
+
+  const isCompleted = appointment.status === 'Completed';
 
   const isFollowUpInPast = (() => {
     if (!followUpDate) return false;
@@ -50,36 +145,75 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
     return picked <= today;
   })();
 
-  const saveConsultationRecord = async (isDraft) => {
+  const buildConsultationPayload = (isDraft) => {
+    const validMedicines = medicines.filter(
+      (m) => m.medicineName.trim().length >= 2 && m.dosage.trim() && m.frequency && m.duration.trim(),
+    );
+
     const payload = {
       symptoms,
       diagnosis,
       consultationNotes: notes,
-      followUpDate: followUpDate || undefined,
-      isDraft,
+      followUpDate: followUpDate || null,
     };
-    const res = consultationId
-      ? await updateConsultation(consultationId, payload)
-      : await createConsultation({ appointmentId: appointment._id, ...payload });
-    setConsultationId(res.data?.data?._id || '');
-    return res.data?.data;
+
+    if (validMedicines.length) {
+      payload.prescription = { items: validMedicines };
+    }
+
+    if (isDraft !== undefined) payload.isDraft = isDraft;
+
+    const trimmedReportTitle = reportTitle.trim();
+    const trimmedReportText = reportText.trim();
+
+    if (reportMode === 'text' && trimmedReportText.length > 0) {
+      payload.medicalReport = {
+        title: trimmedReportTitle.length >= 2 ? trimmedReportTitle : 'Medical Report',
+        fileType: 'text',
+        originalText: trimmedReportText,
+      };
+    } else if (reportMode === 'pdf' && reportFile) {
+      payload.medicalReport = {
+        title: trimmedReportTitle.length >= 2 ? trimmedReportTitle : 'Medical Report',
+        fileType: 'pdf',
+      };
+    }
+
+    return payload;
   };
+
+  const persistConsultation = async (isDraft) => {
+    const payload = buildConsultationPayload(isDraft);
+    const pdfFile = reportMode === 'pdf' && reportFile ? reportFile : null;
+    const res = await upsertAppointmentConsultation(appointment._id, payload, pdfFile);
+    const bundle = res.data?.data;
+    const saved = bundle?.consultation;
+    setConsultationId(saved?._id ? String(saved._id) : '');
+    if (bundle) applyBundle(bundle);
+    if (pdfFile) setReportFile(null);
+    return saved;
+  };
+
+  const saveConsultationRecord = async (isDraft) => persistConsultation(isDraft);
 
   const handleSaveDraft = async () => {
     if (!notes.trim()) {
       toast.error('Consultation notes required');
       return;
     }
-    if (isFollowUpInPast) {
+    if (!isCompleted && isFollowUpInPast) {
       toast.error('Follow-up date must be in the future');
       return;
     }
+    setSavingDraft(true);
     try {
-      await saveConsultationRecord(true);
-      toast.success('Consultation saved successfully');
+      await saveConsultationRecord(isCompleted ? undefined : true);
+      toast.success(isCompleted ? 'Consultation updated' : 'Consultation saved successfully');
       onSaved?.();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not save consultation');
+      toast.error(apiErrorMessage(error, 'Could not save consultation'));
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -92,7 +226,7 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
       toast.error('Consultation notes required');
       return;
     }
-    if (isFollowUpInPast) {
+    if (!isCompleted && isFollowUpInPast) {
       toast.error('Follow-up date must be in the future');
       return;
     }
@@ -122,7 +256,7 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
       onSaved?.();
       onClose?.();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not complete consultation');
+      toast.error(apiErrorMessage(error, 'Could not complete consultation'));
     } finally {
       setSaving(false);
     }
@@ -135,20 +269,16 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
       toast.error('Please complete all required medicine fields');
       return;
     }
-    if (!consultationId) {
-      toast.error('Save consultation notes first');
+    if (!resolvePatientId(appointment)) {
+      toast.error('Patient record missing on this appointment');
       return;
     }
     try {
-      await createPrescription({
-        consultationId,
-        patientId: appointment.patientId?._id,
-        items: medicines,
-      });
+      await persistConsultation(isCompleted ? undefined : true);
       toast.success('Prescription saved');
       onSaved?.();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not save prescription');
+      toast.error(apiErrorMessage(error, 'Could not save prescription'));
     }
   };
 
@@ -162,36 +292,40 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
     }
   };
 
-  const handleUploadReport = async ({ mode, title, patientId, appointmentId, originalText, file }) => {
+  const handleUploadReport = async ({ mode, title, originalText, file }) => {
+    if (!resolvePatientId(appointment)) {
+      toast.error('Patient record missing on this appointment');
+      return;
+    }
     setUploadingReport(true);
     try {
-      if (mode === 'pdf') {
-        const formData = new FormData();
-        formData.append('title', title);
-        formData.append('patientId', patientId);
-        formData.append('appointmentId', appointmentId || '');
-        formData.append('fileType', 'pdf');
-        formData.append('file', file);
-        const res = await uploadReportPDF(formData);
-        setReport(res.data?.data || null);
-      } else {
-        const res = await uploadReport({ title, patientId, appointmentId, fileType: 'text', originalText });
-        setReport(res.data?.data || null);
-      }
-      toast.success('Report uploaded successfully');
+      const payload = buildConsultationPayload(isCompleted ? undefined : true);
+      payload.medicalReport =
+        mode === 'pdf'
+          ? { title, fileType: 'pdf' }
+          : { title, fileType: 'text', originalText };
+      const res = await upsertAppointmentConsultation(
+        appointment._id,
+        payload,
+        mode === 'pdf' ? file : null,
+      );
+      applyBundle(res.data?.data);
+      toast.success('Report saved to consultation');
+      onSaved?.();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not upload report');
+      toast.error(apiErrorMessage(error, 'Could not save report'));
     } finally {
       setUploadingReport(false);
     }
   };
 
   const handleGenerateSummary = async () => {
-    if (!report?._id) return;
+    const summaryTargetId = consultationId || report?._id;
+    if (!summaryTargetId) return;
     setGenerating(true);
     setShowUnavailableBanner(false);
     try {
-      const res = await generateAISummary(report._id);
+      const res = await generateAISummary(summaryTargetId);
       setSummary(res.data?.data || null);
       toast.success('AI summary generated');
       onSaved?.();
@@ -238,30 +372,50 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {activeTab === 'notes' ? (
+          {loadingBundle ? (
+            <p className="text-sm text-slate-400">Loading saved consultation…</p>
+          ) : null}
+          {!loadingBundle && activeTab === 'notes' ? (
             <div className="space-y-4">
               <label className="block text-xs text-slate-300">Symptoms
-                <textarea disabled={readOnly} value={symptoms} onChange={(e) => setSymptoms(e.target.value)} className="mt-1 min-h-20 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" placeholder="Describe symptoms, complaints, observations..." />
+                <textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)} className="mt-1 min-h-20 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" placeholder="Describe symptoms, complaints, observations..." />
               </label>
               <label className="block text-xs text-slate-300">Diagnosis
-                <textarea disabled={readOnly} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} className="mt-1 min-h-20 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
+                <textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} className="mt-1 min-h-20 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
               </label>
               <label className="block text-xs text-slate-300">Consultation Notes *
-                <textarea disabled={readOnly} value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 min-h-32 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 min-h-32 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
               </label>
               <label className="block text-xs text-slate-300">Follow-up Date
-                <input disabled={readOnly} value={followUpDate} min={tomorrow} onChange={(e) => setFollowUpDate(e.target.value)} type="date" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
+                <input value={followUpDate} min={isCompleted ? undefined : tomorrow} onChange={(e) => setFollowUpDate(e.target.value)} type="date" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/70 p-2 text-sm text-slate-100" />
               </label>
             </div>
           ) : null}
 
-          {activeTab === 'prescription' ? <PrescriptionForm medicines={medicines} setMedicines={setMedicines} onSave={handleSavePrescription} saving={saving} /> : null}
+          {!loadingBundle && activeTab === 'prescription' ? (
+            <PrescriptionForm medicines={medicines} setMedicines={setMedicines} onSave={handleSavePrescription} saving={saving} />
+          ) : null}
 
-          {activeTab === 'report' ? (
+          {!loadingBundle && activeTab === 'report' ? (
             <div className="space-y-4">
+              {report?.title ? (
+                <div className="rounded-lg border border-teal-300/20 bg-teal-400/5 p-3 text-sm text-teal-100">
+                  <p className="font-medium">Saved report: {report.title}</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {report.fileType === 'pdf' ? 'PDF upload' : 'Text report'} · included when you Save Draft
+                  </p>
+                </div>
+              ) : null}
               <ReportUploadForm
-                patientId={appointment.patientId?._id}
-                appointmentId={appointment._id}
+                patientId={resolvePatientId(appointment)}
+                mode={reportMode}
+                onModeChange={setReportMode}
+                title={reportTitle}
+                onTitleChange={setReportTitle}
+                text={reportText}
+                onTextChange={setReportText}
+                file={reportFile}
+                onFileChange={setReportFile}
                 uploading={uploadingReport}
                 onUpload={handleUploadReport}
               />
@@ -274,9 +428,10 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
                   onDismissBanner={() => setShowUnavailableBanner(false)}
                   onGenerate={handleGenerateSummary}
                   onRejectRegenerate={async () => {
-                    if (!report?._id) return;
+                    const summaryTargetId = consultationId || report?._id;
+                    if (!summaryTargetId) return;
                     try {
-                      await rejectAISummary(report._id);
+                      await rejectAISummary(summaryTargetId);
                       setSummary(null);
                       toast.warning('Summary rejected');
                     } catch (error) {
@@ -284,13 +439,14 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
                     }
                   }}
                   onApprove={async (editedSummary) => {
-                    if (!summary?._id) return;
+                    const summaryTargetId = consultationId || report?._id;
+                    if (!summaryTargetId) return;
                     if (!String(editedSummary || '').trim()) {
                       toast.error('Cannot approve empty/blank summary text');
                       return;
                     }
                     try {
-                      await approveAISummary(report._id, { summaryId: summary._id, editedSummary });
+                      await approveAISummary(summaryTargetId, { editedSummary });
                       toast.success('Summary approved — patient can now view');
                       const refreshed = { ...summary, simplifiedSummary: editedSummary, status: 'Approved' };
                       setSummary(refreshed);
@@ -303,19 +459,35 @@ function DoctorConsultationModal({ open, appointment, doctorName, readOnly = fal
               ) : null}
             </div>
           ) : null}
+
+          {/* Keep report fields mounted so typed text survives tab switches and is included in Save Draft */}
+          {!loadingBundle && activeTab !== 'report' && reportText.trim() ? (
+            <p className="rounded-md border border-slate-700 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+              Medical report text ({reportText.trim().length} chars) will be included when you save.
+            </p>
+          ) : null}
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
           <button type="button" onClick={onClose} className="rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-200">Cancel</button>
-          <button type="button" disabled={readOnly} onClick={handleSaveDraft} className="rounded-md border border-slate-600 px-3 py-2 text-xs text-slate-200">Save Draft</button>
           <button
             type="button"
-            disabled={readOnly || !notes.trim() || saving}
-            onClick={handleComplete}
-            className="rounded-md border border-teal-300/25 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100 disabled:opacity-50"
+            disabled={savingDraft || !notes.trim()}
+            onClick={handleSaveDraft}
+            className="rounded-md border border-slate-600 px-3 py-2 text-xs text-slate-200 disabled:opacity-50"
           >
-            Mark Appointment Complete
+            {savingDraft ? 'Saving…' : isCompleted ? 'Save Changes' : 'Save Draft'}
           </button>
+          {!isCompleted ? (
+            <button
+              type="button"
+              disabled={!notes.trim() || saving}
+              onClick={handleComplete}
+              className="rounded-md border border-teal-300/25 bg-teal-400/10 px-3 py-2 text-xs font-semibold text-teal-100 disabled:opacity-50"
+            >
+              Mark Appointment Complete
+            </button>
+          ) : null}
         </footer>
       </section>
     </div>

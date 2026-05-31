@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { getPatientReportSummary } from '@/api/patientPortal.js';
+import { downloadPatientReportPDF, getPatientReportSummary } from '@/api/patientPortal.js';
 import CareModal from '@/shared/components/CareModal.jsx';
 import { formatDate, formatDateTime } from '@/utils/dateHelpers.js';
 import { generateSummaryPDF } from '@/utils/generateSummaryPDF.js';
@@ -8,10 +8,20 @@ import { generateSummaryPDF } from '@/utils/generateSummaryPDF.js';
 const DISCLAIMER =
   'This summary is for informational purposes only and does not constitute medical advice.';
 
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function ReportSummaryModal({ open, reportId, patient, onClose }) {
   const [data, setData] = useState(null);
   const [forbidden, setForbidden] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     if (!open || !reportId) {
@@ -44,8 +54,8 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
     };
   }, [open, reportId]);
 
-  const downloadPdf = () => {
-    if (!data) return;
+  const downloadSummaryPdf = () => {
+    if (!data?.simplifiedSummary?.trim()) return;
     generateSummaryPDF({
       patientName: patient?.name,
       patientCode: patient?.patientId || patient?.patientCode,
@@ -55,8 +65,29 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
       uploadedDate: formatDate(data.uploadedAt),
       disclaimer: DISCLAIMER,
     });
-    toast.success('PDF downloaded');
+    toast.success('Summary PDF downloaded');
   };
+
+  const downloadOriginalPdf = async () => {
+    if (!reportId) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await downloadPatientReportPDF(reportId);
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const filename =
+        data?.pdfName ||
+        `${String(data?.title || 'medical-report').replace(/[^\w.\-() ]+/g, '_')}.pdf`;
+      triggerBlobDownload(blob, filename);
+      toast.success('Report PDF downloaded');
+    } catch {
+      toast.error('Could not download report PDF');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const showOriginalPdfDownload = data?.hasPdfDownload || data?.fileType === 'pdf';
+  const showSummaryDownload = data?.summaryStatus === 'Approved' && data?.simplifiedSummary?.trim();
 
   return (
     <CareModal
@@ -67,10 +98,22 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
       alignTop
       footer={
         !loading && data ? (
-          <>
-            <button type="button" onClick={downloadPdf} className="care-btn-primary">
-              Download summary PDF
-            </button>
+          <div className="flex flex-wrap justify-end gap-2">
+            {showOriginalPdfDownload ? (
+              <button
+                type="button"
+                disabled={downloadingPdf}
+                onClick={downloadOriginalPdf}
+                className="care-btn-primary"
+              >
+                {downloadingPdf ? 'Downloading…' : 'Download report PDF'}
+              </button>
+            ) : null}
+            {showSummaryDownload ? (
+              <button type="button" onClick={downloadSummaryPdf} className="care-btn-view">
+                Download summary PDF
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onClose}
@@ -78,7 +121,7 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
             >
               Close
             </button>
-          </>
+          </div>
         ) : (
           <button
             type="button"
@@ -103,10 +146,50 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
       ) : null}
 
       {forbidden && !loading ? (
-        <p className="mt-6 text-sm text-[var(--text-secondary)]">This summary is not yet available. Your doctor is reviewing it.</p>
+        <p className="mt-6 text-sm text-[var(--text-secondary)]">This report is not yet available.</p>
       ) : null}
 
-      {!loading && data ? (
+      {!loading && data && data.summaryStatus !== 'Approved' ? (
+        <>
+          <div className="mt-6 space-y-1 text-sm text-[var(--text-secondary)]">
+            <p>
+              <span className="text-[var(--text-muted)]">Doctor: </span>Dr. {data.doctorName}
+            </p>
+            <p>
+              <span className="text-[var(--text-muted)]">Date uploaded: </span>
+              {formatDate(data.uploadedAt)}
+            </p>
+            <p>
+              <span className="text-[var(--text-muted)]">Status: </span>
+              {data.summaryStatus === 'Pending Approval'
+                ? 'Summary pending doctor review'
+                : data.summaryStatus === 'Rejected'
+                  ? 'Summary being revised by your doctor'
+                  : 'Report saved — summary not yet generated'}
+            </p>
+          </div>
+
+          {data.originalText?.trim() ? (
+            <>
+              <p className="mt-8 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--teal-light)]">
+                Report text
+              </p>
+              <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-base leading-[1.8] text-[var(--text-primary)] whitespace-pre-wrap">
+                {data.originalText}
+              </div>
+            </>
+          ) : showOriginalPdfDownload ? (
+            <p className="mt-6 text-sm text-[var(--text-secondary)]">
+              Your doctor uploaded this report as a PDF. Use <strong>Download report PDF</strong> below to save a copy.
+              {data.summaryStatus === 'Not Generated'
+                ? ' A simplified summary may be added after your doctor reviews it.'
+                : ' A simplified summary will appear here once it has been reviewed and approved.'}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {!loading && data && data.summaryStatus === 'Approved' ? (
         <>
           <div className="mt-6 space-y-1 text-sm text-[var(--text-secondary)]">
             <p>

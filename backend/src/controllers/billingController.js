@@ -8,7 +8,7 @@ import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
 import { dayBoundsInPakistan } from '../utils/dateTime.js';
-import { findPatientByUserId } from '../utils/patientLink.js';
+import { resolvePatientForPortalUser } from '../utils/patientLink.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
 import {
   assertPatientOwnsInvoice,
@@ -17,6 +17,7 @@ import {
   enrichedInvoice,
   findInvoiceOrFail,
   populateInvoice,
+  resolveRefId,
 } from '../services/billingService.js';
 
 // ─── Route handlers ───────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ export const listInvoices = asyncHandler(async (req, res) => {
   if (status && status !== 'All Status') query.paymentStatus = status;
 
   if (req.user.role === 'patient') {
-    const patient = await findPatientByUserId(req.user._id).select('_id').lean();
+    const patient = await resolvePatientForPortalUser(req.user, '_id');
     if (!patient) {
       return res.status(404).json({ success: false, message: 'Patient record not found' });
     }
@@ -200,8 +201,8 @@ export const createInvoice = asyncHandler(async (req, res) => {
   const invoice = await Invoice.create({
     invoiceNumber,
     appointmentId: appt._id,
-    patientId: appt.patientId._id,
-    doctorId: appt.doctorId._id,
+    patientId: resolveRefId(appt.patientId),
+    doctorId: resolveRefId(appt.doctorId),
     items, subtotal, discount, taxPercent, taxAmount, totalAmount,
     paymentStatus,
     paymentMethod: paymentStatus !== 'Unpaid' ? paymentMethod : null,
@@ -271,7 +272,7 @@ export const recordInvoicePayment = asyncHandler(async (req, res) => {
 
 export const getPatientInvoices = asyncHandler(async (req, res) => {
   if (req.user.role === 'patient') {
-    const patient = await findPatientByUserId(req.user._id).select('_id').lean();
+    const patient = await resolvePatientForPortalUser(req.user, '_id');
     if (!patient || String(patient._id) !== String(req.params.patientId)) {
       throw AppError.forbidden('You are not allowed to view these invoices');
     }

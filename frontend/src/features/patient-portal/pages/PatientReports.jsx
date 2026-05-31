@@ -9,6 +9,13 @@ import Badge from '@/shared/components/Badge.jsx';
 import Card from '@/shared/components/Card.jsx';
 import { formatDate } from '@/utils/dateHelpers.js';
 
+const statusMeta = {
+  Approved: { badge: 'approved', label: 'Approved summary' },
+  'Pending Approval': { badge: 'pending', label: 'Summary pending review' },
+  Rejected: { badge: 'missed', label: 'Summary being revised' },
+  'Not Generated': { badge: 'scheduled', label: 'Report on file' },
+};
+
 function PatientReports() {
   const { patient } = useOutletContext();
   const [rows, setRows] = useState([]);
@@ -44,7 +51,7 @@ function PatientReports() {
         }}
       >
         <p className="m-0 text-xs leading-relaxed text-[var(--text-muted)]">
-          Approved summaries are written for clarity only. Always follow guidance from your care team.
+          Your medical reports from completed visits appear here. When your doctor approves an AI summary, it will be shown alongside the report.
         </p>
       </Card>
 
@@ -59,28 +66,43 @@ function PatientReports() {
           <EmptyState
             icon={<EmptyStateIconInbox />}
             title="No reports available yet"
-            subtitle="Approved summaries will appear here after your doctor publishes them."
+            subtitle="Reports uploaded by your doctor during a consultation will appear here."
           />
         </Card>
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {rows.map((r) => (
-          <Card key={r._id} padding="20px 22px">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge type="approved" label="Approved summary" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">{r.title || 'Report'}</h3>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Uploaded {r.uploadedAt ? formatDate(r.uploadedAt) : '—'}
-              {r.approvedByName ? ` · Approved by Dr. ${r.approvedByName}` : ''}
-              {r.approvedAt ? ` · ${formatDate(r.approvedAt)}` : ''}
-            </p>
-            <button type="button" onClick={() => setOpenId(r.reportId)} className="care-btn-primary mt-4">
-              View summary →
-            </button>
-          </Card>
-        ))}
+        {rows.map((r) => {
+          const meta = statusMeta[r.summaryStatus] || statusMeta['Not Generated'];
+          const isApproved = r.summaryStatus === 'Approved';
+          return (
+            <Card key={r._id} padding="20px 22px">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge type={meta.badge} label={meta.label} />
+                {r.fileType === 'pdf' ? (
+                  <span className="text-[0.6875rem] uppercase tracking-wide text-[var(--text-muted)]">PDF</span>
+                ) : null}
+              </div>
+              <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">{r.title || 'Report'}</h3>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                Uploaded {r.uploadedAt ? formatDate(r.uploadedAt) : '—'}
+                {r.doctorName ? ` · Dr. ${r.doctorName}` : ''}
+                {isApproved && r.approvedByName ? ` · Approved by Dr. ${r.approvedByName}` : ''}
+                {isApproved && r.approvedAt ? ` · ${formatDate(r.approvedAt)}` : ''}
+              </p>
+              {!isApproved ? (
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  {r.fileType === 'text'
+                    ? 'You can view the report text now. A simplified summary may be added after your doctor reviews it.'
+                    : 'Open this report to download the PDF uploaded by your doctor.'}
+                </p>
+              ) : null}
+              <button type="button" onClick={() => setOpenId(r.reportId)} className="care-btn-primary mt-4">
+                {isApproved ? 'View summary →' : 'View report →'}
+              </button>
+            </Card>
+          );
+        })}
       </div>
 
       <PatientPaginationBar

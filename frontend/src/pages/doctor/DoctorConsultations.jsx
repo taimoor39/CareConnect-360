@@ -46,7 +46,6 @@ function DoctorConsultations() {
         open={Boolean(active)}
         appointment={active}
         doctorName={auth.name}
-        readOnly={active?.status === 'Completed'}
         onClose={() => setActive(null)}
         onSaved={fetchData}
       />

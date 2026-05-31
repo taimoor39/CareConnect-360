@@ -4,6 +4,7 @@ import {
   getPatientDashboardStats,
   getPatientProfile,
   getPatientReportSummary,
+  downloadPatientReportPDF,
   listPatientAppointments,
   listPatientInvoices,
   listPatientPrescriptions,
@@ -25,6 +26,7 @@ router.get('/appointments', listPatientAppointments);
 router.get('/prescriptions', listPatientPrescriptions);
 router.get('/reports', listPatientReports);
 router.get('/reports/:reportId/summary', patientReportIdValidator, validate, getPatientReportSummary);
+router.get('/reports/:reportId/pdf', patientReportIdValidator, validate, downloadPatientReportPDF);
 router.get('/invoices', listPatientInvoices);
 router.get('/profile', getPatientProfile);
 router.put('/profile', updateProfileValidator, validate, updatePatientProfile);

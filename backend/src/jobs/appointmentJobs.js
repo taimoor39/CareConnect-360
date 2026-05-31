@@ -17,7 +17,6 @@ import Consultation from '../models/Consultation.js';
 import DoctorProfile from '../models/DoctorProfile.js';
 import EngagementLog from '../models/EngagementLog.js';
 import Patient from '../models/Patient.js';
-import Prescription from '../models/Prescription.js';
 import { getSettings, sendEngagementEmail } from '../utils/emailService.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js';
@@ -277,9 +276,8 @@ export const runPrescriptionRenewals = async () => {
           continue;
         }
 
-        const rx = await Prescription.findOne({ consultationId: consult._id }).select('items').lean();
-        const medicineList = rx?.items?.length
-          ? rx.items.map((p) => `${p.medicineName} (${p.dosage})`).join(', ')
+        const medicineList = consult.prescription?.items?.length
+          ? consult.prescription.items.map((p) => `${p.medicineName} (${p.dosage})`).join(', ')
           : 'Your prescribed medicines';
 
         const clinicName = getClinicName(settings);

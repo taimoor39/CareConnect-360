@@ -70,7 +70,6 @@ function DoctorDashboard() {
         open={Boolean(activeAppointment)}
         appointment={activeAppointment}
         doctorName={auth.name}
-        readOnly={activeAppointment?.status === 'Completed'}
         onClose={() => setActiveAppointment(null)}
         onSaved={fetchData}
       />

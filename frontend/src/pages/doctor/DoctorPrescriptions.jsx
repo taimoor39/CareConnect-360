@@ -1,18 +1,30 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+import { getDoctorPrescriptions } from '../../api/doctor.js';
 import DoctorLayout from '@/shared/layouts/DoctorLayout.jsx';
 import { getAuthUser } from '../../utils/authUser.js';
 import { formatDateInPakistan, formatTimeInPakistan } from '../../utils/isoDate.js';
 
 function DoctorPrescriptions() {
   const auth = getAuthUser();
-  const store = useMemo(() => {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchRows = useCallback(async () => {
+    setLoading(true);
     try {
-      return JSON.parse(localStorage.getItem('careconnect360_doctor_portal_v1') || '{}');
+      const res = await getDoctorPrescriptions();
+      setRows(res.data?.data || []);
     } catch {
-      return {};
+      toast.error('Failed to load prescriptions');
+    } finally {
+      setLoading(false);
     }
   }, []);
-  const rows = Object.entries(store.prescriptions || {});
+
+  useEffect(() => {
+    fetchRows();
+  }, [fetchRows]);
 
   return (
     <DoctorLayout title="Prescriptions" doctorName={auth.name}>
@@ -20,21 +32,56 @@ function DoctorPrescriptions() {
         <table className="min-w-full text-left text-xs">
           <thead className="border-b border-slate-800 bg-slate-900/60 text-slate-300">
             <tr>
-              <th className="px-4 py-3">Appointment</th>
+              <th className="px-4 py-3">Patient</th>
+              <th className="px-4 py-3">Visit</th>
               <th className="px-4 py-3">Medicines</th>
               <th className="px-4 py-3">Updated</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr><td className="px-4 py-8 text-center text-slate-400" colSpan={3}>No prescriptions yet</td></tr>
-            ) : rows.map(([appointmentId, rx]) => (
-              <tr key={appointmentId} className="border-b border-slate-800/60">
-                <td className="px-4 py-3 font-mono text-[11px] text-slate-300">{appointmentId}</td>
-                <td className="px-4 py-3">{(rx.medicines || []).map((m) => `${m.medicineName} (${m.dosage})`).join(', ')}</td>
-                <td className="px-4 py-3">{rx.updatedAt ? `${formatDateInPakistan(rx.updatedAt)} ${formatTimeInPakistan(rx.updatedAt)}` : '--'}</td>
+            {loading ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-slate-400" colSpan={4}>
+                  Loading prescriptions…
+                </td>
               </tr>
-            ))}
+            ) : null}
+            {!loading && rows.length === 0 ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-slate-400" colSpan={4}>
+                  No prescriptions yet
+                </td>
+              </tr>
+            ) : null}
+            {!loading
+              ? rows.map((rx) => {
+                  const appt = rx.consultationId?.appointmentId;
+                  return (
+                    <tr key={rx._id} className="border-b border-slate-800/60">
+                      <td className="px-4 py-3 text-slate-200">
+                        {rx.patientId?.name || '—'}
+                        <span className="mt-0.5 block font-mono text-[10px] text-slate-500">
+                          {rx.patientId?.patientId || rx.patientId?.patientCode || ''}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">
+                        {appt?.date ? formatDateInPakistan(appt.date) : '—'}
+                        {appt?.timeSlot ? ` · ${appt.timeSlot}` : ''}
+                      </td>
+                      <td className="px-4 py-3">
+                        {(rx.items || [])
+                          .map((m) => `${m.medicineName} (${m.dosage})`)
+                          .join(', ')}
+                      </td>
+                      <td className="px-4 py-3">
+                        {rx.updatedAt
+                          ? `${formatDateInPakistan(rx.updatedAt)} ${formatTimeInPakistan(rx.updatedAt)}`
+                          : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              : null}
           </tbody>
         </table>
       </section>
@@ -43,4 +90,3 @@ function DoctorPrescriptions() {
 }
 
 export default DoctorPrescriptions;
-

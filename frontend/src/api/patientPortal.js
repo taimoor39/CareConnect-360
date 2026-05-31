@@ -10,6 +10,9 @@ export const getMyReports = (params = {}) => axiosInstance.get('/patient/reports
 
 export const getPatientReportSummary = (reportId) => axiosInstance.get(`/patient/reports/${reportId}/summary`);
 
+export const downloadPatientReportPDF = (reportId) =>
+  axiosInstance.get(`/patient/reports/${reportId}/pdf`, { responseType: 'blob' });
+
 export const getMyInvoices = (params = {}) => axiosInstance.get('/patient/invoices', { params });
 
 export const getMyProfile = () => axiosInstance.get('/patient/profile');

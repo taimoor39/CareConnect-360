@@ -66,13 +66,15 @@ function PatientAppointments() {
 
   const list = rows;
 
-  const hasPrescription = (appointmentId) =>
-    prescriptions.some(
-      (p) => String(p.consultationId?.appointmentId?._id || p.consultationId?.appointmentId) === String(appointmentId),
+  const hasPrescription = (appt) =>
+    Boolean(appt.consultation?.prescription?.items?.length)
+    || prescriptions.some(
+      (p) => String(p.consultationId?.appointmentId?._id || p.consultationId?.appointmentId) === String(appt._id),
     );
 
-  const hasApprovedReport = (appointmentId) =>
-    reports.some((r) => r.appointmentId && String(r.appointmentId) === String(appointmentId));
+  const hasReport = (appt) =>
+    Boolean(appt.consultation?.medicalReport?.title)
+    || reports.some((r) => r.appointmentId && String(r.appointmentId) === String(appt._id));
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -162,12 +164,12 @@ function PatientAppointments() {
                     View QR code
                   </button>
                 ) : null}
-                {a.status === 'Completed' && hasPrescription(a._id) ? (
+                {a.status === 'Completed' && hasPrescription(a) ? (
                   <button type="button" onClick={() => navigate('/patient/prescriptions')} className="care-btn-view">
                     View prescription
                   </button>
                 ) : null}
-                {a.status === 'Completed' && hasApprovedReport(a._id) ? (
+                {a.status === 'Completed' && hasReport(a) ? (
                   <button type="button" onClick={() => navigate('/patient/reports')} className="care-btn-primary-sm">
                     View report
                   </button>

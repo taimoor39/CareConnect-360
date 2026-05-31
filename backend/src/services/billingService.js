@@ -2,7 +2,7 @@ import DoctorProfile from '../models/DoctorProfile.js';
 import Invoice from '../models/Invoice.js';
 
 import AppError from '../utils/AppError.js';
-import { findPatientByUserId } from '../utils/patientLink.js';
+import { resolvePatientForPortalUser } from '../utils/patientLink.js';
 
 export const buildAmounts = (rawItems = [], discountInput = 0, taxPercentInput = 0) => {
   const items = rawItems.map((i) => {
@@ -48,9 +48,15 @@ export const findInvoiceOrFail = async (id) => {
   return invoice;
 };
 
+export const resolveRefId = (ref) => {
+  if (!ref) return ref;
+  if (typeof ref === 'object' && ref._id) return ref._id;
+  return ref;
+};
+
 export const assertPatientOwnsInvoice = async (req, invoiceDoc) => {
   if (req.user.role !== 'patient') return;
-  const patient = await findPatientByUserId(req.user._id).select('_id').lean();
+  const patient = await resolvePatientForPortalUser(req.user, '_id');
   const pid = String(invoiceDoc.patientId?._id || invoiceDoc.patientId);
   if (!patient || pid !== String(patient._id)) {
     throw AppError.forbidden('You are not allowed to view this invoice');

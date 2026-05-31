@@ -1,6 +1,6 @@
 import User from '../models/User.js';
 import { verifyToken } from '../utils/jwt.js';
-import { findPatientByUserId } from '../utils/patientLink.js';
+import { resolvePatientForPortalUser } from '../utils/patientLink.js';
 
 /**
  * Authenticate the request by verifying the Bearer token.
@@ -73,9 +73,8 @@ export const requireApprovedPatientPortal = async (req, res, next) => {
   }
 
   try {
-    const patient = await findPatientByUserId(req.user._id)
-      .select('portalAccessStatus portalAccessRejectionReason')
-      .lean();
+    const patientDoc = await resolvePatientForPortalUser(req.user, 'portalAccessStatus portalAccessRejectionReason');
+    const patient = patientDoc?.toObject ? patientDoc.toObject() : patientDoc;
 
     if (!patient) {
       return res.status(403).json({

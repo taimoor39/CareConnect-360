@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { createInvoice, downloadInvoicePDF, getCompletedAppointments, getInvoiceById, getInvoices, recordPayment } from '../../api/billing.js';
 import BillingFilters from '../../components/billing/BillingFilters.jsx';
@@ -7,6 +7,7 @@ import InvoiceDetailDrawer from '../../components/billing/InvoiceDetailDrawer.js
 import InvoiceTable from '../../components/billing/InvoiceTable.jsx';
 import RecordPaymentModal from '../../components/billing/RecordPaymentModal.jsx';
 import ReceptionistLayout from '@/shared/layouts/ReceptionistLayout.jsx';
+import { buildInvoiceTotals } from '../../utils/invoiceTotals.js';
 import { firstOfMonthISOInPakistan, todayISOInPakistan } from '../../utils/isoDate.js';
 
 const defaultInvoiceForm = {
@@ -65,6 +66,15 @@ function ReceptionistBilling() {
   });
   const [paymentSaving, setPaymentSaving] = useState(false);
 
+  const totals = useMemo(
+    () => buildInvoiceTotals(invoiceForm.items, invoiceForm.discount, invoiceForm.taxPercent),
+    [invoiceForm.items, invoiceForm.discount, invoiceForm.taxPercent],
+  );
+
+  useEffect(() => {
+    setInvoiceForm((prev) => ({ ...prev, totals }));
+  }, [totals]);
+
   const fetchInvoices = useCallback(async () => {
     setTableLoading(true);
     try {
@@ -110,11 +120,38 @@ function ReceptionistBilling() {
     }
   };
 
+  const validateInvoice = () => {
+    const errors = {};
+    const validItems = (invoiceForm.items || []).filter(
+      (item) => String(item.description || '').trim().length >= 2 && Number(item.unitPrice) >= 0,
+    );
+    if (validItems.length === 0) errors.items = 'At least 1 valid billing item is required';
+    if (Number(invoiceForm.discount || 0) > totals.subtotal) {
+      errors.totals = `Discount cannot exceed subtotal (Rs. ${totals.subtotal.toLocaleString()})`;
+    }
+    if (Number(invoiceForm.taxPercent || 0) < 0 || Number(invoiceForm.taxPercent || 0) > 100) {
+      errors.totals = 'Tax must be between 0% and 100%';
+    }
+    if (!invoiceForm.paymentStatus) errors.payment = 'Payment status is required';
+    if (['Paid', 'Partial'].includes(invoiceForm.paymentStatus) && !invoiceForm.paymentMethod) {
+      errors.payment = 'Select a payment method';
+    }
+    if (invoiceForm.paymentStatus === 'Partial') {
+      const paid = Number(invoiceForm.paidAmount || 0);
+      if (paid <= 0 || paid > totals.totalAmount) {
+        errors.payment = `Paid amount must be between Rs. 1 and Rs. ${Math.round(totals.totalAmount).toLocaleString()}`;
+      }
+    }
+    setInvoiceErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const submitInvoice = async () => {
     if (!selectedAppointment) {
       setInvoiceErrors({ items: 'Select an appointment first' });
       return;
     }
+    if (!validateInvoice()) return;
     try {
       setInvoiceSaving(true);
       await createInvoice({

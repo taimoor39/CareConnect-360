@@ -43,9 +43,6 @@ backend/public/uploads/
 frontend/public/uploads/
 *.pdf
 
-# Local-only config/data
-backend/src/config/seeders.local.json
-
 # OS / editor
 .DS_Store
 Thumbs.db

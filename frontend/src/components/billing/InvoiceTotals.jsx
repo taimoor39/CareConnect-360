@@ -12,6 +12,10 @@ function InvoiceTotals({ totals, discount, setDiscount, taxPercent, setTaxPercen
         <span>Tax (%):</span>
         <input type="number" min={0} max={100} value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} className="w-32 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-right" />
       </div>
+      <div className="mt-2 flex justify-between text-slate-300">
+        <span>Tax amount:</span>
+        <span>{money(totals.taxAmount)}</span>
+      </div>
       <div className="mt-3 border-t border-slate-700 pt-2 text-base font-semibold text-teal-300">TOTAL: {money(totals.totalAmount)}</div>
       {error ? <p className="mt-1 text-[11px] text-rose-300">{error}</p> : null}
     </div>
