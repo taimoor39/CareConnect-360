@@ -189,11 +189,30 @@ export const createInvoice = asyncHandler(async (req, res) => {
   if (existing) throw AppError.conflict('Invoice already exists for this appointment');
 
   const { items, subtotal, discount, taxPercent, taxAmount, totalAmount } = buildAmounts(req.body.items, req.body.discount, req.body.taxPercent);
-  const paid = Number(paidAmount || 0);
+  const status = String(paymentStatus || 'Unpaid').trim();
 
-  if (paid > totalAmount) throw AppError.badRequest('Paid amount cannot exceed total amount');
-  if (paymentStatus === 'Paid' && paid < totalAmount) throw AppError.badRequest('Mark as Partial if payment is incomplete');
-  if (paymentStatus === 'Partial' && paid <= 0) throw AppError.badRequest('Enter amount paid for partial payment');
+  if (!['Paid', 'Unpaid', 'Partial'].includes(status)) {
+    throw AppError.badRequest('Payment status must be Paid, Unpaid, or Partial');
+  }
+  if (['Paid', 'Partial'].includes(status) && !paymentMethod) {
+    throw AppError.badRequest('Payment method is required for Paid or Partial invoices');
+  }
+
+  let finalPaidAmount = 0;
+  let finalPaidAt = null;
+
+  if (status === 'Paid') {
+    finalPaidAmount = totalAmount;
+    finalPaidAt = new Date();
+  } else if (status === 'Partial') {
+    const partial = Number(paidAmount || 0);
+    if (partial <= 0) throw AppError.badRequest('Enter amount paid for partial payment');
+    if (partial >= totalAmount) {
+      throw AppError.badRequest('Partial amount cannot equal or exceed total. Use Paid status for full payment.');
+    }
+    finalPaidAmount = partial;
+    finalPaidAt = new Date();
+  }
 
   const count = await Invoice.countDocuments();
   const invoiceNumber = `INV-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
@@ -204,10 +223,10 @@ export const createInvoice = asyncHandler(async (req, res) => {
     patientId: resolveRefId(appt.patientId),
     doctorId: resolveRefId(appt.doctorId),
     items, subtotal, discount, taxPercent, taxAmount, totalAmount,
-    paymentStatus,
-    paymentMethod: paymentStatus !== 'Unpaid' ? paymentMethod : null,
-    paidAmount: paymentStatus === 'Paid' ? totalAmount : paid,
-    paidAt: paymentStatus === 'Paid' ? new Date() : null,
+    paymentStatus: status,
+    paymentMethod: status !== 'Unpaid' ? paymentMethod : null,
+    paidAmount: finalPaidAmount,
+    paidAt: finalPaidAt,
     notes: String(req.body.notes || '').trim(),
     generatedBy: req.user._id,
   });

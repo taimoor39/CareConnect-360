@@ -134,12 +134,14 @@ function ReceptionistBilling() {
     }
     if (!invoiceForm.paymentStatus) errors.payment = 'Payment status is required';
     if (['Paid', 'Partial'].includes(invoiceForm.paymentStatus) && !invoiceForm.paymentMethod) {
-      errors.payment = 'Select a payment method';
+      errors.paymentMethod = 'Payment method is required';
     }
     if (invoiceForm.paymentStatus === 'Partial') {
       const paid = Number(invoiceForm.paidAmount || 0);
-      if (paid <= 0 || paid > totals.totalAmount) {
-        errors.payment = `Paid amount must be between Rs. 1 and Rs. ${Math.round(totals.totalAmount).toLocaleString()}`;
+      if (paid <= 0) {
+        errors.paidAmount = 'Paid amount is required';
+      } else if (paid >= totals.totalAmount) {
+        errors.paidAmount = 'For full payment, select Paid status';
       }
     }
     setInvoiceErrors(errors);
@@ -163,9 +165,14 @@ function ReceptionistBilling() {
         })),
         discount: Number(invoiceForm.discount || 0),
         taxPercent: Number(invoiceForm.taxPercent || 0),
-        paymentStatus: invoiceForm.paymentStatus || 'Unpaid',
-        paymentMethod: invoiceForm.paymentMethod || undefined,
-        paidAmount: Number(invoiceForm.paidAmount || 0),
+        paymentStatus: invoiceForm.paymentStatus,
+        paymentMethod: ['Paid', 'Partial'].includes(invoiceForm.paymentStatus)
+          ? invoiceForm.paymentMethod
+          : undefined,
+        paidAmount:
+          invoiceForm.paymentStatus === 'Paid'
+            ? totals.totalAmount
+            : Number(invoiceForm.paidAmount || 0),
         notes: invoiceForm.notes,
       });
       toast.success('Invoice generated successfully');

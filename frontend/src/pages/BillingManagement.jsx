@@ -236,12 +236,14 @@ function BillingManagement() {
     }
     if (!invoiceForm.paymentStatus) errors.payment = 'Payment status is required';
     if (['Paid', 'Partial'].includes(invoiceForm.paymentStatus) && !invoiceForm.paymentMethod) {
-      errors.payment = 'Select a payment method';
+      errors.paymentMethod = 'Payment method is required';
     }
     if (invoiceForm.paymentStatus === 'Partial') {
       const paid = Number(invoiceForm.paidAmount || 0);
-      if (paid <= 0 || paid > totals.totalAmount) {
-        errors.payment = `Paid amount must be between Rs. 1 and Rs. ${Math.round(totals.totalAmount).toLocaleString()}`;
+      if (paid <= 0) {
+        errors.paidAmount = 'Paid amount is required';
+      } else if (paid >= totals.totalAmount) {
+        errors.paidAmount = 'For full payment, select Paid status';
       }
     }
     setInvoiceErrors(errors);

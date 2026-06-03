@@ -122,30 +122,101 @@ function GenerateInvoiceModal({
                   error={errors.totals}
                 />
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <select value={invoiceForm.paymentStatus} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, paymentStatus: e.target.value }))} className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs">
-                  <option value="">Payment Status *</option>
-                  <option>Paid</option>
-                  <option>Unpaid</option>
-                  <option>Partial</option>
-                </select>
-                {invoiceForm.paymentStatus !== 'Unpaid' ? (
-                  <select value={invoiceForm.paymentMethod} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, paymentMethod: e.target.value }))} className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs">
-                    <option value="">Payment Method</option>
-                    <option>Cash</option>
-                    <option>Card</option>
-                    <option>Online</option>
-                    <option>Insurance</option>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                    Payment status *
+                  </label>
+                  <select
+                    value={invoiceForm.paymentStatus || ''}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setInvoiceForm((prev) => ({
+                        ...prev,
+                        paymentStatus: next,
+                        paymentMethod: '',
+                        paidAmount: '',
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100"
+                  >
+                    <option value="">Select status...</option>
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Partial">Partial</option>
                   </select>
-                ) : <div />}
-                {invoiceForm.paymentStatus === 'Partial' ? (
-                  <input type="number" min={0} value={invoiceForm.paidAmount} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, paidAmount: e.target.value }))} placeholder="Amount Paid" className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+                </div>
+
+                {['Paid', 'Partial'].includes(invoiceForm.paymentStatus) ? (
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                      Payment method *
+                    </label>
+                    <select
+                      value={invoiceForm.paymentMethod || ''}
+                      onChange={(e) => setInvoiceForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+                      className={`w-full rounded-lg border bg-slate-900/80 px-3 py-2 text-xs text-slate-100 ${
+                        errors.paymentMethod ? 'border-rose-400/50' : 'border-slate-700'
+                      }`}
+                    >
+                      <option value="">Select method...</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Card">Card</option>
+                      <option value="Online">Online</option>
+                      <option value="Insurance">Insurance</option>
+                    </select>
+                    {errors.paymentMethod ? <p className="mt-1 text-xs text-rose-300">{errors.paymentMethod}</p> : null}
+                  </div>
                 ) : null}
-                <textarea value={invoiceForm.notes} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes (optional)" rows={2} className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+
+                {invoiceForm.paymentStatus === 'Partial' ? (
+                  <div>
+                    <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                      Paid amount * (Rs.)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={invoiceForm.paidAmount}
+                      onChange={(e) => setInvoiceForm((prev) => ({ ...prev, paidAmount: e.target.value }))}
+                      placeholder="Enter amount paid..."
+                      className={`w-full rounded-lg border bg-slate-900/80 px-3 py-2 text-xs text-slate-100 ${
+                        errors.paidAmount ? 'border-rose-400/50' : 'border-slate-700'
+                      }`}
+                    />
+                    {invoiceForm.paidAmount &&
+                    Number(invoiceForm.paidAmount) > 0 &&
+                    Number(invoiceForm.paidAmount) < totals.totalAmount ? (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Remaining: Rs. {(totals.totalAmount - Number(invoiceForm.paidAmount)).toLocaleString()}
+                      </p>
+                    ) : null}
+                    {errors.paidAmount ? <p className="mt-1 text-xs text-rose-300">{errors.paidAmount}</p> : null}
+                  </div>
+                ) : null}
+
+                {invoiceForm.paymentStatus === 'Paid' ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    <span aria-hidden>✓</span>
+                    Full amount of {money(totals.totalAmount)} will be recorded as paid
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    value={invoiceForm.notes}
+                    onChange={(e) => setInvoiceForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Notes (optional)"
+                    rows={2}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100"
+                  />
+                </div>
               </div>
-              {(errors.items || errors.payment) ? (
-                <p className="text-xs text-rose-300">{errors.items || errors.payment}</p>
-              ) : null}
+              {errors.items ? <p className="text-xs text-rose-300">{errors.items}</p> : null}
+              {errors.payment ? <p className="text-xs text-rose-300">{errors.payment}</p> : null}
             </div>
           )}
         </div>
