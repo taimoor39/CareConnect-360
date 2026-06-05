@@ -52,7 +52,9 @@ const normalizeInvoiceAmounts = (invoicedRaw, collectedRaw) => {
     invoiced,
     collected,
     outstanding: Math.max(invoiced - collected, 0),
-    collectionRate: invoiced > 0 ? Number(((collected / invoiced) * 100).toFixed(1)) : 0,
+    collectionRate: invoiced > 0
+      ? Math.min(100, Math.round((collected / invoiced) * 100))
+      : 0,
   };
 };
 

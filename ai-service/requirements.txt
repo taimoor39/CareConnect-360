@@ -1,11 +1,42 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-transformers==4.35.2
-torch==2.1.0
-pdfplumber==0.10.3
-python-multipart==0.0.6
-sentencepiece==0.1.99
-protobuf==4.25.0
-accelerate>=0.25.0
-pydantic==2.4.2
-pytz==2024.1
+# =============================================================================
+# CareConnect 360 — AI Service (FastAPI + BART summarization)
+# =============================================================================
+#
+# Install (from the ai-service folder):
+#   python -m venv venv
+#   venv\Scripts\activate          # Windows
+#   source venv/bin/activate       # macOS / Linux
+#   pip install --upgrade pip
+#   pip install -r requirements.txt
+#
+# Run:
+#   python -m uvicorn app.main:app --host 0.0.0.0 --port 8001
+#
+# Notes:
+#   - Python 3.10–3.14 supported (use a recent torch wheel for your Python).
+#   - First startup downloads sshleifer/distilbart-cnn-12-6 (~500MB) unless cached.
+#   - Override model: SUMMARIZATION_MODEL_ID=facebook/bart-large-cnn (slower, ~1.6GB).
+# =============================================================================
+
+# --- Web API ---
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.4.2
+
+# --- Hugging Face / BART (AutoModelForSeq2SeqLM — not pipeline('summarization')) ---
+torch>=2.9.0
+transformers>=4.35.2
+tokenizers>=0.15.0
+sentencepiece==0.1.99
+protobuf>=4.25.0
+accelerate>=0.25.0
+safetensors>=0.4.1
+huggingface-hub>=0.19.4
+
+# --- PDF text extraction (/api/summarize-pdf) ---
+pdfplumber==0.10.3
+
+# --- App utilities ---
+pytz==2024.1
+

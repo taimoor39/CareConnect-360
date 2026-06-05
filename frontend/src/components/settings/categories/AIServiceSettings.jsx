@@ -1,23 +1,44 @@
+import { formatDateTime } from '../../../utils/dateHelpers.js';
 import SettingsField from '../shared/SettingsField.jsx';
 import SettingsSection from '../shared/SettingsSection.jsx';
 import ToggleSwitch from '../shared/ToggleSwitch.jsx';
 
+const AI_STATUS_LABELS = {
+  online: 'Online',
+  slow: 'Slow',
+  offline: 'Offline',
+  error: 'Offline',
+};
+
+function formatCheckedAt(checkedAt) {
+  if (!checkedAt) return 'not checked';
+  return formatDateTime(checkedAt);
+}
+
 function AIServiceSettings({ data, errors, dirty, saving, health, healthLoading, onChange, onSave, onCheckHealth }) {
   const set = (k, v) => onChange({ ...data, [k]: v });
-  const tone = health?.status === 'online' ? 'border-emerald-400/40 bg-emerald-500/10' : health?.status === 'slow' ? 'border-amber-400/40 bg-amber-500/10' : 'border-rose-400/40 bg-rose-500/10';
+  const statusKey = health?.status || 'unknown';
+  const tone =
+    statusKey === 'online'
+      ? 'border-emerald-400/40 bg-emerald-500/10'
+      : statusKey === 'slow'
+        ? 'border-amber-400/40 bg-amber-500/10'
+        : statusKey === 'unknown'
+          ? 'border-slate-600/40 bg-slate-800/40'
+          : 'border-rose-400/40 bg-rose-500/10';
 
   return (
     <SettingsSection title="AI Service Configuration" subtitle="Medical report summarization settings">
       <div className={`rounded-lg border p-3 text-sm ${tone}`}>
-        <p>AI Service Status: {health?.status || 'unknown'}</p>
-        <p>Response time: {health?.responseMs ?? '-'}ms</p>
-        <p>Last checked: {health ? 'just now' : 'not checked'}</p>
+        <p>AI Service Status: {healthLoading ? 'Checking…' : AI_STATUS_LABELS[statusKey] || 'Unknown'}</p>
+        <p>Response time: {health?.responseMs != null ? `${health.responseMs}ms` : '—'}</p>
+        <p>Last checked: {healthLoading ? '…' : formatCheckedAt(health?.checkedAt)}</p>
         <button type="button" onClick={onCheckHealth} disabled={healthLoading} className="mt-2 rounded border border-sky-300/30 px-2 py-1 text-xs text-sky-100">{healthLoading ? 'Checking...' : 'Check Connection'}</button>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <SettingsField label="AI Service URL" error={errors.url}><input value={data.url || ''} onChange={(e) => set('url', e.target.value.replace(/\/+$/, ''))} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
-        <SettingsField label="Request Timeout (seconds)" error={errors.timeoutSeconds}><input type="number" min={5} max={120} value={data.timeoutSeconds ?? 30} onChange={(e) => set('timeoutSeconds', Number(e.target.value || 0))} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
-        <SettingsField label="Max Report Length" error={errors.maxReportLength}><input type="number" min={500} max={50000} value={data.maxReportLength ?? 10000} onChange={(e) => set('maxReportLength', Number(e.target.value || 0))} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" /></SettingsField>
+        <SettingsField label="Request Timeout (seconds)" error={errors.timeoutSeconds} helper="Use 180–300 for first model download on CPU; after warmup, 120 is usually enough."><input type="number" min={30} max={300} value={data.timeoutSeconds ?? ''} onChange={(e) => set('timeoutSeconds', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value, 10); set('timeoutSeconds', Number.isNaN(n) ? 180 : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" /></SettingsField>
+        <SettingsField label="Max Report Length" error={errors.maxReportLength}><input type="number" min={500} max={50000} value={data.maxReportLength ?? ''} onChange={(e) => set('maxReportLength', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value, 10); set('maxReportLength', Number.isNaN(n) ? 10000 : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" /></SettingsField>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-2">
         <div className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-xs text-slate-200"><span>AI Summarization Enabled</span><ToggleSwitch checked={Boolean(data.enabled)} onChange={(v) => set('enabled', v)} /></div>

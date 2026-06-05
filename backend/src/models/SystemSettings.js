@@ -130,7 +130,7 @@ const systemSettingsSchema = new mongoose.Schema(
     },
     aiService: {
       url: { type: String, default: 'http://localhost:8001' },
-      timeoutSeconds: { type: Number, default: 30 },
+      timeoutSeconds: { type: Number, default: 180 },
       maxReportLength: { type: Number, default: 10000 },
       enabled: { type: Boolean, default: true },
       autoSummarize: { type: Boolean, default: false },

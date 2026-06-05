@@ -9,6 +9,7 @@ import {
   MailGlyph,
   authFieldLabelClass,
 } from '@/shared/components/auth/AuthSplitLayout.jsx';
+import { formInputTextStyle } from '@/utils/formInputTextStyle.js';
 
 /* ─── Icon glyphs ────────────────────────────────────────────── */
 
@@ -164,7 +165,8 @@ function ForgotPassword() {
                     placeholder="you@clinic.com"
                     onChange={(ev) => setEmail(ev.target.value)}
                     onBlur={() => setEmailError(validateEmail(email))}
-                    className="w-full rounded-xl border border-slate-700/90 bg-slate-950/40 px-4 py-3 pr-11 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20"
+                    style={formInputTextStyle}
+                    className="w-full rounded-xl border border-slate-700/90 bg-slate-950/40 px-4 py-3 pr-11 text-sm outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20"
                   />
                   <span
                     className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"

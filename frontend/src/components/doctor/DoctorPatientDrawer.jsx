@@ -16,7 +16,7 @@ function DoctorPatientDrawer({ open, detail, onClose }) {
           {(detail.visitHistory || []).map((a) => (
             <article key={a._id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
               <p className="text-sm text-slate-200">{formatDateInPakistan(a.date)} | {a.status}</p>
-              <p className="text-xs text-slate-400">{a.notes || 'No consultation notes yet'}</p>
+              <p className="text-xs text-slate-400">{a.consultationNotes || 'No consultation notes yet'}</p>
             </article>
           ))}
         </section>

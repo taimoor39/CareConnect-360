@@ -90,7 +90,7 @@ export const aiServiceValidator = [
     .custom((v) => {
       try { new URL(v); return true; } catch { throw new Error('Invalid URL'); }
     }),
-  body('timeoutSeconds').optional().isInt({ min: 5, max: 120 }).withMessage('Timeout: 5–120 seconds'),
+  body('timeoutSeconds').optional().isInt({ min: 30, max: 300 }).withMessage('Timeout: 30–300 seconds'),
   body('maxReportLength').optional().isInt({ min: 500, max: 50000 }).withMessage('Max length: 500–50,000 characters'),
 ];
 

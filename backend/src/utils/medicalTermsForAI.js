@@ -18,7 +18,7 @@ export async function getMedicalTermsMapForAI() {
 
   const map = {};
   for (const row of rows) {
-    const k = String(row.medicalTerm ?? '').trim();
+    const k = String(row.medicalTerm ?? '').trim().toLowerCase();
     const v = String(row.simplifiedTerm ?? '').trim();
     if (k && v) {
       map[k] = v;

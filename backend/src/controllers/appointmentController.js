@@ -159,8 +159,6 @@ export const createAppointment = asyncHandler(async (req, res) => {
   });
 
   setImmediate(() => {
-    const name = patient?.name || `${patient?.firstName || ''} ${patient?.lastName || ''}`.trim();
-    console.log(`Appointment confirmation email queued for ${name} with Dr. ${doctor?.name || 'Unknown'}`);
   });
 
   await auditFromReq(req, 'APPOINTMENT_CREATED', `Appointment:${appointment._id}`, { patientId, doctorId, date: appointmentDate, timeSlot });

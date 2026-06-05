@@ -171,7 +171,8 @@ app.use((req, res) => {
 
 // ─── Global error handler ─────────────────────────────────────────────────
 app.use((error, _req, res, _next) => {
-  const statusCode = error.statusCode || 500;
+  console.error('[ERROR]', error.message);
+  const statusCode = error.statusCode || error.status || 500;
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (statusCode === 500 && !isProduction) {

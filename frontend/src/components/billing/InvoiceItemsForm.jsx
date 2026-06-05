@@ -11,7 +11,7 @@ function InvoiceItemsForm({ items = [], setItems, errors = {} }) {
               value={item.description}
               onChange={(e) => setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, description: e.target.value } : it)))}
               placeholder="Description *"
-              className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs"
+              className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100"
             />
             <input
               type="number"
@@ -21,7 +21,7 @@ function InvoiceItemsForm({ items = [], setItems, errors = {} }) {
                 const raw = e.target.value;
                 setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, quantity: raw } : it)));
               }}
-              className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs"
+              className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100"
             />
             <input
               type="number"
@@ -32,7 +32,7 @@ function InvoiceItemsForm({ items = [], setItems, errors = {} }) {
                 setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, unitPrice: raw } : it)));
               }}
               placeholder="Unit Price *"
-              className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs"
+              className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100"
             />
             <input value={money(Number(item.quantity || 0) * Number(item.unitPrice || 0))} readOnly className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-xs text-slate-300" />
             <button

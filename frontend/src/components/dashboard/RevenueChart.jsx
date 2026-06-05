@@ -34,7 +34,18 @@ function RevenueChart({ data, period, onChangePeriod }) {
           <ComposedChart data={data || []}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="label" tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
+            <YAxis
+              tick={{ fill: '#9ca3af', fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+              tickFormatter={(v) => {
+                if (!Number.isInteger(v)) return '';
+                if (v >= 100000) return `Rs.${(v / 100000).toFixed(1)}L`;
+                if (v >= 1000) return `Rs.${(v / 1000).toFixed(0)}K`;
+                return v === 0 ? '0' : `Rs.${v}`;
+              }}
+            />
             <Tooltip
               contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9' }}
               formatter={(value, name) => [`Rs. ${Number(value || 0).toLocaleString()}`, name === 'invoiced' ? 'Total Invoiced' : 'Collected']}

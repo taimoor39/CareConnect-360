@@ -2,7 +2,7 @@
  * Patient portal API (/api/patient/*).
  *
  * Resolves the Patient from JWT → Patient.user link; all queries must stay scoped to that record.
- * Report summaries are returned when approved; saved report records appear once the doctor uploads them.
+ * SRS FR37: patients see uploaded medical reports; AI simplified summaries only when Approved.
  */
 import Appointment from '../models/Appointment.js';
 import Consultation from '../models/Consultation.js';
@@ -10,7 +10,11 @@ import DoctorProfile from '../models/DoctorProfile.js';
 import Invoice from '../models/Invoice.js';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
-import { toPatientReportRow, toPrescriptionRow } from '../utils/consultationHelpers.js';
+import {
+  patientVisibleConsultationClause,
+  toPatientReportRow,
+  toPrescriptionRow,
+} from '../utils/consultationHelpers.js';
 
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
@@ -115,12 +119,19 @@ export const getPatientDashboardStats = asyncHandler(async (req, res) => {
   const today = range.start;
   const pid = patient._id;
 
+  const completedApptIds = await Appointment.find({ patientId: pid, status: 'Completed' }).distinct('_id');
+
   const [upcoming, prescriptions, reports, nextAppt, lastCompleted] = await Promise.all([
     Appointment.countDocuments({ patientId: pid, date: { $gte: today }, status: 'Scheduled' }),
-    Consultation.countDocuments({ patientId: pid, isDraft: false, 'prescription.items.0': { $exists: true } }),
     Consultation.countDocuments({
       patientId: pid,
-      'medicalReport.summary.status': 'Approved',
+      'prescription.items.0': { $exists: true },
+      ...patientVisibleConsultationClause(completedApptIds),
+    }),
+    Consultation.countDocuments({
+      patientId: pid,
+      'medicalReport.title': { $exists: true, $nin: [null, ''] },
+      ...patientVisibleConsultationClause(completedApptIds),
     }),
     Appointment.findOne({ patientId: pid, date: { $gte: today }, status: 'Scheduled' })
       .sort({ date: 1, timeSlot: 1 })
@@ -195,11 +206,12 @@ export const listPatientAppointments = asyncHandler(async (req, res) => {
 
   const merged = await attachDoctorMetaForAppointments(rows);
   const ids = merged.map((r) => r._id).filter(Boolean);
+  const completedApptIds = merged.filter((r) => r.status === 'Completed').map((r) => r._id);
   const consultations = ids.length
     ? await Consultation.find({
         appointmentId: { $in: ids },
         patientId: patient._id,
-        isDraft: false,
+        ...patientVisibleConsultationClause(completedApptIds),
       })
         .select('appointmentId symptoms diagnosis consultationNotes followUpDate prescription medicalReport updatedAt')
         .lean()
@@ -248,10 +260,12 @@ export const listPatientPrescriptions = asyncHandler(async (req, res) => {
 
   const { page, limit, skip } = parsePagination(req.query);
 
+  const completedApptIds = await Appointment.find({ patientId: patient._id, status: 'Completed' }).distinct('_id');
+
   const filter = {
     patientId: patient._id,
-    isDraft: false,
     'prescription.items.0': { $exists: true },
+    ...patientVisibleConsultationClause(completedApptIds),
   };
 
   const [consultRows, total] = await Promise.all([
@@ -277,69 +291,74 @@ export const listPatientPrescriptions = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { prescriptions: data, pagination: paginationMeta(total, page, limit) } });
 });
 
-/** GET /api/patient/reports — saved medical reports (approved summary when available) */
+/** GET /api/patient/reports — uploaded reports; summary text only when Approved (FR37) */
 export const listPatientReports = asyncHandler(async (req, res) => {
   const patient = await findPatientByUserId(req.user._id).select('_id').lean();
   if (!patient) throw AppError.notFound('Patient record not found');
 
   const { page, limit, skip } = parsePagination(req.query);
 
-  const filter = {
+  const completedApptIds = await Appointment.find({ patientId: patient._id, status: 'Completed' }).distinct('_id');
+
+  const reportFilter = {
     patientId: patient._id,
     'medicalReport.title': { $exists: true, $nin: [null, ''] },
+    ...patientVisibleConsultationClause(completedApptIds),
   };
+
   const [rows, total] = await Promise.all([
-    Consultation.find(filter)
+    Consultation.find(reportFilter)
       .sort({ 'medicalReport.uploadedAt': -1, updatedAt: -1 })
       .skip(skip)
       .limit(limit)
       .populate('doctorId', 'name')
+      .populate('medicalReport.summary.approvedBy', 'name')
       .lean(),
-    Consultation.countDocuments(filter),
+    Consultation.countDocuments(reportFilter),
   ]);
 
-  const approverIds = rows.map((c) => c.medicalReport?.summary?.approvedBy).filter(Boolean);
-  const approvers = approverIds.length
-    ? await User.find({ _id: { $in: approverIds } }).select('name').lean()
-    : [];
-  const approverMap = new Map(approvers.map((u) => [String(u._id), u.name]));
-
-  const data = rows.map((c) =>
-    toPatientReportRow(c, {
+  const data = rows.map((c) => {
+    const approvedBy = c.medicalReport?.summary?.approvedBy;
+    const approvedByName =
+      (typeof approvedBy === 'object' && approvedBy?.name) || null;
+    return toPatientReportRow(c, {
       doctorName: c.doctorId?.name || null,
-      approvedByName: approverMap.get(String(c.medicalReport?.summary?.approvedBy)) || null,
-    }),
-  );
+      approvedByName,
+    });
+  });
 
   res.json({ success: true, data: { reports: data, pagination: paginationMeta(total, page, limit) } });
 });
 
-/** GET /api/patient/reports/:reportId/summary */
+/** GET /api/patient/reports/:reportId/summary — report detail; AI summary text only when Approved */
 export const getPatientReportSummary = asyncHandler(async (req, res) => {
   const patient = await findPatientByUserId(req.user._id).select('_id').lean();
   if (!patient) throw AppError.notFound('Patient record not found');
+
+  const completedApptIds = await Appointment.find({ patientId: patient._id, status: 'Completed' }).distinct('_id');
 
   const consultation = await Consultation.findOne({
     _id: req.params.reportId,
     patientId: patient._id,
     'medicalReport.title': { $exists: true, $nin: [null, ''] },
+    ...patientVisibleConsultationClause(completedApptIds),
   })
     .select(
-      'medicalReport.title medicalReport.fileType medicalReport.originalText medicalReport.pdfName medicalReport.uploadedAt medicalReport.summary doctorId appointmentId updatedAt',
+      'medicalReport.title medicalReport.fileType medicalReport.pdfName medicalReport.originalText medicalReport.uploadedAt medicalReport.summary doctorId appointmentId updatedAt',
     )
+    .populate('medicalReport.summary.approvedBy', 'name')
     .lean();
   if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
 
-  const summary = consultation.medicalReport.summary || { status: 'Not Generated' };
+  const summary = consultation.medicalReport.summary;
+  const summaryStatus = summary?.status || 'Not Generated';
+  const isApproved = summaryStatus === 'Approved';
   const doctor = await User.findById(consultation.doctorId).select('name').lean();
-  let approverName = doctor?.name;
-  if (summary.approvedBy) {
-    const approver = await User.findById(summary.approvedBy).select('name').lean();
-    approverName = approver?.name || approverName;
-  }
-
-  const isApproved = summary.status === 'Approved';
+  const approverRef = summary?.approvedBy;
+  const approverName =
+    (typeof approverRef === 'object' && approverRef?.name) || (isApproved ? doctor?.name : null) || null;
   const isPdf = consultation.medicalReport.fileType === 'pdf';
+  const isText = consultation.medicalReport.fileType === 'text';
 
   res.json({
     success: true,
@@ -352,13 +371,10 @@ export const getPatientReportSummary = asyncHandler(async (req, res) => {
       hasPdfDownload: isPdf,
       uploadedAt: consultation.medicalReport.uploadedAt || consultation.updatedAt,
       doctorName: doctor?.name || 'Doctor',
-      summaryStatus: summary.status || 'Not Generated',
-      simplifiedSummary: isApproved ? summary.simplifiedSummary || '' : '',
-      originalText:
-        consultation.medicalReport.fileType === 'text'
-          ? consultation.medicalReport.originalText || ''
-          : '',
-      approvedAt: isApproved ? summary.approvedAt : null,
+      summaryStatus,
+      simplifiedSummary: isApproved ? summary?.simplifiedSummary || '' : '',
+      originalText: isText ? String(consultation.medicalReport.originalText || '').trim() : '',
+      approvedAt: isApproved ? summary?.approvedAt || null : null,
       approvedByName: isApproved ? approverName : null,
       medicalTermsExplained: [],
     },
@@ -370,10 +386,14 @@ export const downloadPatientReportPDF = asyncHandler(async (req, res) => {
   const patient = await findPatientByUserId(req.user._id).select('_id').lean();
   if (!patient) throw AppError.notFound('Patient record not found');
 
+  const completedApptIds = await Appointment.find({ patientId: patient._id, status: 'Completed' }).distinct('_id');
+
   const consultation = await Consultation.findOne({
     _id: req.params.reportId,
     patientId: patient._id,
     'medicalReport.fileType': 'pdf',
+    'medicalReport.title': { $exists: true, $nin: [null, ''] },
+    ...patientVisibleConsultationClause(completedApptIds),
   }).select('medicalReport.title medicalReport.pdfBase64 medicalReport.pdfName medicalReport.pdfMimeType').lean();
 
   const pdfBase64 = consultation?.medicalReport?.pdfBase64;

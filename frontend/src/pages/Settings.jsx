@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 
 import { getAuditLogs } from '../api/audit.js';
@@ -204,6 +204,35 @@ function Settings() {
       .finally(() => setLoading(false));
   }, []);
 
+  const refreshAiHealth = useCallback(async () => {
+    setAiHealthLoading(true);
+    try {
+      const res = await checkAIHealth();
+      setAiHealth(res.data?.data || null);
+    } catch {
+      setAiHealth({
+        status: 'offline',
+        responseMs: 0,
+        url: formStates.aiService.data?.url || '',
+        checkedAt: new Date().toISOString(),
+      });
+    } finally {
+      setAiHealthLoading(false);
+    }
+  }, [formStates.aiService.data?.url]);
+
+  useEffect(() => {
+    if (loading) return;
+    refreshAiHealth();
+  }, [loading, refreshAiHealth]);
+
+  useEffect(() => {
+    if (activeCategory !== 'aiService' || loading) return;
+    refreshAiHealth();
+    const timer = setInterval(refreshAiHealth, 30000);
+    return () => clearInterval(timer);
+  }, [activeCategory, loading, refreshAiHealth]);
+
   const validateGeneral = () => {
     const d = formStates.general.data || {};
     const errors = {};
@@ -257,7 +286,9 @@ function Settings() {
     const errors = {};
     if (!String(d.url || '').trim()) errors.url = 'AI service URL required';
     else { try { new URL(d.url); } catch { errors.url = 'Invalid URL'; } }
-    if (d.timeoutSeconds && (Number(d.timeoutSeconds) < 5 || Number(d.timeoutSeconds) > 120)) errors.timeoutSeconds = 'Timeout: 5–120 seconds';
+    if (d.timeoutSeconds && (Number(d.timeoutSeconds) < 30 || Number(d.timeoutSeconds) > 300)) {
+      errors.timeoutSeconds = 'Timeout: 30–300 seconds';
+    }
     if (d.maxReportLength && (Number(d.maxReportLength) < 500 || Number(d.maxReportLength) > 50000)) errors.maxReportLength = 'Max length: 500–50,000';
     setCategoryErrors('aiService', errors);
     return Object.keys(errors).length === 0;
@@ -314,6 +345,7 @@ function Settings() {
     const res = await updateAIService(payload);
     markSaved('aiService', res.data?.data || payload);
     toast.success('AI service settings saved');
+    await refreshAiHealth();
   };
 
   const saveActiveCategory = async () => {
@@ -487,18 +519,7 @@ function Settings() {
               healthLoading={aiHealthLoading}
               onChange={(next) => setCategory('aiService', next)}
               onSave={saveAI}
-              onCheckHealth={async () => {
-                setAiHealthLoading(true);
-                try {
-                  const res = await checkAIHealth();
-                  setAiHealth(res.data?.data || null);
-                } catch {
-                  setAiHealth({ status: 'error', responseMs: 0, url: formStates.aiService.data?.url || '' });
-                  toast.error('AI service unreachable');
-                } finally {
-                  setAiHealthLoading(false);
-                }
-              }}
+              onCheckHealth={refreshAiHealth}
             />
           ) : null}
           {activeCategory === 'medicalTerms' ? (

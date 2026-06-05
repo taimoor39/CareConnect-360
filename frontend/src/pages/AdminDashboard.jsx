@@ -299,7 +299,16 @@ function AdminDashboard() {
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="label" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" tickFormatter={(v) => `${Math.round(v / 1000)}K`} />
+                <YAxis
+                  stroke="#94a3b8"
+                  allowDecimals={false}
+                  tickFormatter={(v) => {
+                    if (!Number.isInteger(v)) return '';
+                    if (v >= 100000) return `Rs.${(v / 100000).toFixed(1)}L`;
+                    if (v >= 1000) return `Rs.${(v / 1000).toFixed(0)}K`;
+                    return v === 0 ? '0' : `Rs.${v}`;
+                  }}
+                />
                 <Tooltip content={chartTooltip} />
                 <Legend />
                 <Bar dataKey="invoiced" name="Invoiced" fill="#14b8a6" radius={[4, 4, 0, 0]} />

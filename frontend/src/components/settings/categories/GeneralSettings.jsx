@@ -8,22 +8,22 @@ function GeneralSettings({ data, errors, onChange, onSave, dirty, saving }) {
     <SettingsSection title="General & Security Settings" subtitle="Authentication and system-wide configuration">
       <div className="grid gap-3 md:grid-cols-2">
         <SettingsField label="Token Expiry Duration" error={errors.jwtExpiryHours} helper="Users will be logged out after this many hours of inactivity">
-          <input type="number" min={1} max={720} value={data.jwtExpiryHours ?? ''} onChange={(e) => set('jwtExpiryHours', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('jwtExpiryHours', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" />
+          <input type="number" min={1} max={720} value={data.jwtExpiryHours ?? ''} onChange={(e) => set('jwtExpiryHours', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('jwtExpiryHours', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" />
         </SettingsField>
         <SettingsField label="Minimum Password Length" error={errors.minPasswordLength}>
-          <input type="number" min={6} max={32} value={data.minPasswordLength ?? ''} onChange={(e) => set('minPasswordLength', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('minPasswordLength', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" />
+          <input type="number" min={6} max={32} value={data.minPasswordLength ?? ''} onChange={(e) => set('minPasswordLength', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('minPasswordLength', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" />
         </SettingsField>
         <SettingsField label="Password Expiry (days)">
-          <input type="number" min={0} value={data.passwordExpiryDays ?? ''} onChange={(e) => set('passwordExpiryDays', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('passwordExpiryDays', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" />
+          <input type="number" min={0} value={data.passwordExpiryDays ?? ''} onChange={(e) => set('passwordExpiryDays', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('passwordExpiryDays', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" />
         </SettingsField>
         <SettingsField label="Max Login Attempts" error={errors.maxLoginAttempts}>
-          <input type="number" min={3} max={10} value={data.maxLoginAttempts ?? ''} onChange={(e) => set('maxLoginAttempts', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('maxLoginAttempts', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" />
+          <input type="number" min={3} max={10} value={data.maxLoginAttempts ?? ''} onChange={(e) => set('maxLoginAttempts', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('maxLoginAttempts', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" />
         </SettingsField>
         <SettingsField label="File Upload Size Limit (MB)" error={errors.fileUploadLimitMB}>
-          <input type="number" min={1} max={50} value={data.fileUploadLimitMB ?? ''} onChange={(e) => set('fileUploadLimitMB', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('fileUploadLimitMB', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" />
+          <input type="number" min={1} max={50} value={data.fileUploadLimitMB ?? ''} onChange={(e) => set('fileUploadLimitMB', e.target.value)} onBlur={(e) => { const n = parseInt(e.target.value); set('fileUploadLimitMB', isNaN(n) ? '' : n); }} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" />
         </SettingsField>
         <SettingsField label="Allowed Frontend Origin" error={errors.corsAllowedOrigin} helper="Use * for development only">
-          <input value={data.corsAllowedOrigin || ''} onChange={(e) => set('corsAllowedOrigin', e.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm" />
+          <input value={data.corsAllowedOrigin || ''} onChange={(e) => set('corsAllowedOrigin', e.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-sm text-slate-100" />
         </SettingsField>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-2">

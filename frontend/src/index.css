@@ -80,10 +80,16 @@
 
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus {
-    -webkit-box-shadow: 0 0 0 100px var(--bg-secondary) inset !important;
-    -webkit-text-fill-color: var(--text-primary) !important;
-    caret-color: var(--text-primary);
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 100px #1e293b inset !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #f1f5f9 !important;
+  }
+
+  select option {
+    background: #1e293b;
+    color: #f1f5f9;
   }
 
   /* Step 8 — form controls (portals; Tailwind utilities still override when applied) */
@@ -95,7 +101,7 @@
     border-radius: var(--radius-sm);
     padding: 10px 12px;
     font-size: 14px;
-    color: var(--text-primary);
+    color: #f1f5f9;
     width: 100%;
     outline: none;
     font-family: inherit;
@@ -113,8 +119,16 @@
 
   input:not([type='checkbox']):not([type='radio'])::placeholder,
   textarea::placeholder {
-    color: var(--text-muted);
+    color: #475569 !important;
+    opacity: 1 !important;
     font-weight: 300;
+  }
+
+  /* Tailwind utility text-slate/text-gray on controls must not fade typed values */
+  input[class*='border-slate']:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select[class*='border-slate'],
+  textarea[class*='border-slate'] {
+    color: #f1f5f9 !important;
   }
 }
 

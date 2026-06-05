@@ -15,6 +15,7 @@ function DoctorPatients() {
   const [status, setStatus] = useState('All');
   const [selectedPatient, setSelectedPatient] = useState(null); // detail payload
   const [activeAppointment, setActiveAppointment] = useState(null);
+  const [modalInitialTab, setModalInitialTab] = useState('notes');
 
   const fetchData = async () => {
     try {
@@ -68,6 +69,14 @@ function DoctorPatients() {
               </tr>
             </thead>
             <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#94a3b8', marginBottom: 4 }}>No patients found</div>
+                    <div style={{ fontSize: 12 }}>Patients from your appointments will appear here.</div>
+                  </td>
+                </tr>
+              ) : null}
               {filtered.map((p) => {
                 const pRows = appointments.filter((a) => String(a.patientId?._id) === String(p._id));
                 const lastVisit = [...pRows].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
@@ -90,8 +99,26 @@ function DoctorPatients() {
                         >
                           View History
                         </button>
-                        <button type="button" onClick={() => setActiveAppointment(lastVisit || null)} className="rounded-md border border-teal-300/25 bg-teal-400/10 px-2.5 py-1 text-[11px] text-teal-100">New Report</button>
-                        <button type="button" onClick={() => setActiveAppointment(lastVisit || null)} className="rounded-md border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] text-amber-100">Prescribe</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModalInitialTab('report');
+                            setActiveAppointment(lastVisit || null);
+                          }}
+                          className="rounded-md border border-teal-300/25 bg-teal-400/10 px-2.5 py-1 text-[11px] text-teal-100"
+                        >
+                          New Report
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModalInitialTab('prescription');
+                            setActiveAppointment(lastVisit || null);
+                          }}
+                          className="rounded-md border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] text-amber-100"
+                        >
+                          Prescribe
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -107,6 +134,7 @@ function DoctorPatients() {
       <DoctorConsultationModal
         open={Boolean(activeAppointment)}
         appointment={activeAppointment}
+        initialTab={modalInitialTab}
         doctorName={auth.name}
         onClose={() => setActiveAppointment(null)}
         onSaved={fetchData}

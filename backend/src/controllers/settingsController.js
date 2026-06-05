@@ -16,6 +16,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
 import { invalidateSettingsCache, sendMailWithRetry } from '../utils/emailService.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
+import { probeAiServiceForSettings } from '../utils/systemHealthChecks.js';
 
 const TEMPLATE_KEYS = new Set([
   'appointmentReminder',
@@ -214,22 +215,8 @@ export const updateAiServiceSettings = asyncHandler(async (req, res) => {
 
 export const getAiServiceHealth = asyncHandler(async (_req, res) => {
   const settings = await ensureSettings();
-  const url = `${settings.aiService?.url || 'http://localhost:8001'}/api/health`;
-  const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    const responseMs = Date.now() - start;
-    const status = responseMs > 2000 ? 'slow' : (response.ok ? 'online' : 'error');
-    return res.json({ success: true, data: { status, responseMs, url } });
-  } catch {
-    const responseMs = Date.now() - start;
-    return res.json({ success: true, data: { status: 'error', responseMs, url } });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const data = await probeAiServiceForSettings(settings);
+  res.json({ success: true, data });
 });
 
 export const listMedicalTerms = asyncHandler(async (req, res) => {

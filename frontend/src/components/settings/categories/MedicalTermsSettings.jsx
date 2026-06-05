@@ -39,6 +39,14 @@ function MedicalTermsSettings({
         <table className="min-w-full text-xs">
           <thead className="border-b border-slate-800 text-slate-400"><tr><th className="px-2 py-2 text-left">#</th><th className="px-2 py-2 text-left">Medical Term</th><th className="px-2 py-2 text-left">Simplified Term</th><th className="px-2 py-2 text-left">Added By</th><th className="px-2 py-2 text-left">Date</th><th className="px-2 py-2 text-left">Actions</th></tr></thead>
           <tbody>
+            {!terms.length ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '48px 24px', color: '#64748b' }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#94a3b8', marginBottom: 4 }}>No medical terms found</div>
+                  <div style={{ fontSize: 12 }}>Add terms to simplify AI report summaries for patients.</div>
+                </td>
+              </tr>
+            ) : null}
             {terms.map((term, idx) => (
               <tr key={term._id} className="border-b border-slate-800/60">
                 <td className="px-2 py-2 text-slate-300">{(pagination.page - 1) * pagination.limit + idx + 1}</td>

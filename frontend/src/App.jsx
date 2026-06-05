@@ -293,6 +293,7 @@ function App() {
           borderRadius: 10,
           fontSize: 13,
           fontFamily: 'Inter, sans-serif',
+          color: '#f1f5f9',
         }}
       />
     </>

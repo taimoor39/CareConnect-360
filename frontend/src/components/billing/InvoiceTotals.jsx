@@ -6,11 +6,11 @@ function InvoiceTotals({ totals, discount, setDiscount, taxPercent, setTaxPercen
       <div className="flex justify-between"><span>Subtotal:</span><span>{money(totals.subtotal)}</span></div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <span>Discount:</span>
-        <input type="number" min={0} value={discount} onChange={(e) => setDiscount(e.target.value)} className="w-32 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-right" />
+        <input type="number" min={0} value={discount} onChange={(e) => setDiscount(e.target.value)} className="w-32 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-right text-slate-100" />
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <span>Tax (%):</span>
-        <input type="number" min={0} max={100} value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} className="w-32 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-right" />
+        <input type="number" min={0} max={100} value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} className="w-32 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-right text-slate-100" />
       </div>
       <div className="mt-2 flex justify-between text-slate-300">
         <span>Tax amount:</span>

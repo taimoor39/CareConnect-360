@@ -3,6 +3,9 @@ import DateDropdown from '../ui/DateDropdown.jsx';
 import PortalAccessToggle from '../portalAccess/PortalAccessToggle.jsx';
 import { toISOInputValue } from '../../utils/isoDate.js';
 import usePatientForm, { defaultPatientForm } from '../../hooks/usePatientForm.js';
+import { formInputTextStyle } from '../../utils/formInputTextStyle.js';
+
+const fieldClass = 'w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs';
 
 function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} }) {
   const form = usePatientForm(defaultPatientForm);
@@ -73,11 +76,13 @@ function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} })
           <div className="care-modal-body" style={{ maxHeight: 'min(70vh, calc(90vh - 140px))', overflowY: 'auto' }}>
             <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <input ref={(node) => form.registerFieldRef('firstName', node)} name="firstName" value={form.formData.firstName} onChange={(e) => form.handleChange('firstName', e.target.value)} onBlur={() => form.handleBlur('firstName')} placeholder="First Name *" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+              <input ref={(node) => form.registerFieldRef('firstName', node)} name="firstName" value={form.formData.firstName} onChange={(e) => form.handleChange('firstName', e.target.value)} onBlur={() => form.handleBlur('firstName')} placeholder="First Name *" className={fieldClass}
+              style={formInputTextStyle} />
               {error('firstName') ? <p className="mt-1 text-[11px] text-rose-300">{error('firstName')}</p> : null}
             </div>
             <div>
-              <input ref={(node) => form.registerFieldRef('lastName', node)} name="lastName" value={form.formData.lastName} onChange={(e) => form.handleChange('lastName', e.target.value)} onBlur={() => form.handleBlur('lastName')} placeholder="Last Name *" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+              <input ref={(node) => form.registerFieldRef('lastName', node)} name="lastName" value={form.formData.lastName} onChange={(e) => form.handleChange('lastName', e.target.value)} onBlur={() => form.handleBlur('lastName')} placeholder="Last Name *" className={fieldClass}
+              style={formInputTextStyle} />
               {error('lastName') ? <p className="mt-1 text-[11px] text-rose-300">{error('lastName')}</p> : null}
             </div>
             <div>
@@ -93,7 +98,8 @@ function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} })
               {error('dateOfBirth') ? <p className="mt-1 text-[11px] text-rose-300">{error('dateOfBirth')}</p> : null}
             </div>
             <div>
-              <select ref={(node) => form.registerFieldRef('gender', node)} value={form.formData.gender} onChange={(e) => form.handleChange('gender', e.target.value)} onBlur={() => form.handleBlur('gender')} className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs">
+              <select ref={(node) => form.registerFieldRef('gender', node)} value={form.formData.gender} onChange={(e) => form.handleChange('gender', e.target.value)} onBlur={() => form.handleBlur('gender')} className={fieldClass}
+              style={formInputTextStyle}>
                 <option value="">Select Gender *</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -102,14 +108,17 @@ function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} })
               {error('gender') ? <p className="mt-1 text-[11px] text-rose-300">{error('gender')}</p> : null}
             </div>
             <div>
-              <input ref={(node) => form.registerFieldRef('phone', node)} value={form.formData.phone} onChange={(e) => form.handleChange('phone', e.target.value)} onBlur={() => form.handleBlur('phone')} placeholder="Phone *" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+              <input ref={(node) => form.registerFieldRef('phone', node)} value={form.formData.phone} onChange={(e) => form.handleChange('phone', e.target.value)} onBlur={() => form.handleBlur('phone')} placeholder="Phone *" className={fieldClass}
+              style={formInputTextStyle} />
               {error('phone') ? <p className="mt-1 text-[11px] text-rose-300">{error('phone')}</p> : null}
             </div>
             <div>
-              <input ref={(node) => form.registerFieldRef('email', node)} value={form.formData.email} onChange={(e) => form.handleChange('email', e.target.value)} onBlur={() => form.handleBlur('email')} placeholder="Email" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+              <input ref={(node) => form.registerFieldRef('email', node)} value={form.formData.email} onChange={(e) => form.handleChange('email', e.target.value)} onBlur={() => form.handleBlur('email')} placeholder="Email" className={fieldClass}
+              style={formInputTextStyle} />
               {error('email') ? <p className="mt-1 text-[11px] text-rose-300">{error('email')}</p> : null}
             </div>
-            <select ref={(node) => form.registerFieldRef('bloodGroup', node)} value={form.formData.bloodGroup} onChange={(e) => form.handleChange('bloodGroup', e.target.value)} onBlur={() => form.handleBlur('bloodGroup')} className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs">
+            <select ref={(node) => form.registerFieldRef('bloodGroup', node)} value={form.formData.bloodGroup} onChange={(e) => form.handleChange('bloodGroup', e.target.value)} onBlur={() => form.handleBlur('bloodGroup')} className={fieldClass}
+              style={formInputTextStyle}>
               <option value="">Blood Group</option>
               <option value="A+">A+</option>
               <option value="A-">A-</option>
@@ -120,16 +129,26 @@ function AddPatientModal({ open, onClose, onSubmit, saving, serverErrors = {} })
               <option value="AB+">AB+</option>
               <option value="AB-">AB-</option>
             </select>
-            <select value={form.formData.status} onChange={(e) => form.handleChange('status', e.target.value)} className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs">
+            <select value={form.formData.status} onChange={(e) => form.handleChange('status', e.target.value)} className={fieldClass}
+              style={formInputTextStyle}>
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
               <option value="Discharged">Discharged</option>
             </select>
-            <input value={form.formData.addressStreet} onChange={(e) => form.handleChange('addressStreet', e.target.value)} placeholder="Address - Street" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
-            <input value={form.formData.city} onChange={(e) => form.handleChange('city', e.target.value)} placeholder="Address - City" className="w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+            <input value={form.formData.addressStreet} onChange={(e) => form.handleChange('addressStreet', e.target.value)} placeholder="Address - Street" className={fieldClass}
+              style={formInputTextStyle} />
+            <input value={form.formData.city} onChange={(e) => form.handleChange('city', e.target.value)} placeholder="Address - City" className={fieldClass}
+              style={formInputTextStyle} />
           </div>
 
-            <textarea value={form.formData.medicalNotes} onChange={(e) => form.handleChange('medicalNotes', e.target.value)} rows="3" placeholder="Medical Notes" className="col-span-full w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs" />
+            <textarea
+              value={form.formData.medicalNotes}
+              onChange={(e) => form.handleChange('medicalNotes', e.target.value)}
+              rows="3"
+              placeholder="Medical Notes"
+              className={`col-span-full ${fieldClass}`}
+              style={formInputTextStyle}
+            />
 
             <div className="col-span-full">
               <PortalAccessToggle

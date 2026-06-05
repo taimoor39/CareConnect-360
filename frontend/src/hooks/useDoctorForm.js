@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { validateShiftTimes } from '../utils/timeHelpers.js';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^[0-9]{10,15}$/;
@@ -178,6 +179,14 @@ export default function useDoctorForm(initial = baseInitial, options = { mode: '
       const message = validateField(field, value, formData);
       if (message) nextErrors[field] = message;
     });
+
+    const { shiftStart, shiftEnd } = formData.schedule || {};
+    if (shiftStart && shiftEnd && timeRegex.test(shiftStart) && timeRegex.test(shiftEnd)) {
+      const shiftResult = validateShiftTimes(shiftStart, shiftEnd);
+      if (!shiftResult.valid) {
+        nextErrors['schedule.shiftEnd'] = shiftResult.error;
+      }
+    }
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;

@@ -70,12 +70,45 @@ export const uploadReportPDF = (formData) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+/** Long-running: backend calls AI service (model load + BART on CPU). */
+const AI_SUMMARY_TIMEOUT_MS = 300_000;
+
 /** consultationId = consultation document id */
 export const generateAISummary = (consultationId) =>
-  axiosInstance.post(`/doctor/consultations/${consultationId}/medical-report/summarize`);
+  axiosInstance.post(`/doctor/consultations/${consultationId}/medical-report/summarize`, null, {
+    timeout: AI_SUMMARY_TIMEOUT_MS,
+  });
+
+/** Reject existing summary (if any) and run AI summarization again */
+export const regenerateAISummary = (consultationId) =>
+  axiosInstance.post(`/doctor/consultations/${consultationId}/medical-report/regenerate-summary`, null, {
+    timeout: AI_SUMMARY_TIMEOUT_MS,
+  });
 
 export const approveAISummary = (consultationId, data) =>
   axiosInstance.put(`/doctor/consultations/${consultationId}/medical-report/approve-summary`, data);
 
 export const rejectAISummary = (consultationId) =>
   axiosInstance.put(`/doctor/consultations/${consultationId}/medical-report/reject-summary`);
+
+/**
+ * Replace an existing report's file or text content.
+ * Pass `file` (File object) to upload a new PDF, or include `originalText` in
+ * `data` to replace with text. Title-only changes (no file / no originalText)
+ * preserve the existing summary.
+ */
+/** Permanently delete the medical report (and AI summary) from a consultation */
+export const deleteConsultationReport = (consultationId) =>
+  axiosInstance.delete(`/doctor/reports/${consultationId}`);
+
+export const replaceConsultationReport = (consultationId, data, file = null) => {
+  if (file) {
+    const form = new FormData();
+    if (data?.title) form.append('title', data.title);
+    form.append('reportFile', file);
+    return axiosInstance.put(`/doctor/reports/${consultationId}/replace`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+  return axiosInstance.put(`/doctor/reports/${consultationId}/replace`, data);
+};

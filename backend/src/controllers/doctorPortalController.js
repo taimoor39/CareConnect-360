@@ -16,6 +16,7 @@ import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import {
+  resolveIsDraftForSave,
   toConsultationBundle,
   toDoctorReportRow,
   toPrescriptionRow,
@@ -253,7 +254,23 @@ export const getDoctorPatientDetail = asyncHandler(async (req, res) => {
     .filter((c) => c.prescription?.items?.length)
     .map((c) => toPrescriptionRow(c, { patient, appointment: c.appointmentId }));
 
-  res.json({ success: true, data: { patient, visitHistory, reports, prescriptions } });
+  // Enrich visit history rows with consultation fields saved on consultation docs.
+  const consultationByAppointmentId = new Map(
+    consultations
+      .filter((c) => c?.appointmentId?._id)
+      .map((c) => [String(c.appointmentId._id), c]),
+  );
+  const enrichedVisitHistory = visitHistory.map((visit) => {
+    const linkedConsultation = consultationByAppointmentId.get(String(visit._id));
+    return {
+      ...visit,
+      consultationNotes: linkedConsultation?.consultationNotes || '',
+      symptoms: linkedConsultation?.symptoms || '',
+      diagnosis: linkedConsultation?.diagnosis || '',
+    };
+  });
+
+  res.json({ success: true, data: { patient, visitHistory: enrichedVisitHistory, reports, prescriptions } });
 });
 
 export const getDoctorConsultations = asyncHandler(async (req, res) => {
@@ -302,12 +319,10 @@ export const upsertConsultationByAppointment = asyncHandler(async (req, res) => 
   }
 
   applyConsultationFields(consultation, body);
-  if (isDraft === undefined && appointment.status === 'Completed' && consultation.isDraft === false) {
-    consultation.isDraft = false;
-  }
+  consultation.isDraft = resolveIsDraftForSave(isDraft, appointment.status, consultation);
   await consultation.save();
 
-  if (isDraft === false) {
+  if (consultation.isDraft === false) {
     await maybeCompleteAppointment(appointment, false);
   }
 
@@ -317,7 +332,7 @@ export const upsertConsultationByAppointment = asyncHandler(async (req, res) => 
 
 export const createConsultation = asyncHandler(async (req, res) => {
   const appointment = await ensureDoctorOwnsAppointment(req.user._id, req.body.appointmentId);
-  const isDraft = req.body.isDraft !== undefined ? Boolean(req.body.isDraft) : true;
+  const bodyIsDraft = req.body.isDraft !== undefined ? Boolean(req.body.isDraft) : undefined;
 
   let consultation = await findConsultationByAppointment(req.user._id, appointment._id);
   const isNewRecord = !consultation;
@@ -326,14 +341,15 @@ export const createConsultation = asyncHandler(async (req, res) => {
       appointmentId: appointment._id,
       doctorId: req.user._id,
       patientId: appointment.patientId,
-      isDraft,
+      isDraft: bodyIsDraft !== undefined ? bodyIsDraft : true,
     });
   }
 
   applyConsultationFields(consultation, req.body);
+  consultation.isDraft = resolveIsDraftForSave(bodyIsDraft, appointment.status, consultation);
   await consultation.save();
 
-  if (isDraft === false) {
+  if (consultation.isDraft === false) {
     await maybeCompleteAppointment(appointment, false);
   }
 
@@ -345,10 +361,13 @@ export const updateConsultation = asyncHandler(async (req, res) => {
   if (!consultation) throw AppError.notFound('Consultation not found');
 
   applyConsultationFields(consultation, req.body);
-  await consultation.save();
 
   const appointment = await Appointment.findOne({ _id: consultation.appointmentId, doctorId: req.user._id });
-  if (req.body.isDraft === false) {
+  const bodyIsDraft = req.body.isDraft !== undefined ? Boolean(req.body.isDraft) : undefined;
+  consultation.isDraft = resolveIsDraftForSave(bodyIsDraft, appointment?.status, consultation);
+  await consultation.save();
+
+  if (consultation.isDraft === false) {
     await maybeCompleteAppointment(appointment, false);
   }
 
@@ -365,6 +384,12 @@ export const saveConsultationPrescription = asyncHandler(async (req, res) => {
 
   consultation.prescription = { items: req.body.items };
   consultation.markModified('prescription');
+
+  const appointment = await Appointment.findById(consultation.appointmentId).select('status').lean();
+  if (appointment?.status === 'Completed') {
+    consultation.isDraft = false;
+  }
+
   await consultation.save();
 
   res.json({
@@ -451,6 +476,109 @@ export const uploadConsultationMedicalReport = asyncHandler(async (req, res) => 
   });
 });
 
+/** PUT /api/doctor/reports/:id/replace — replace the file/text of an existing report.
+ *
+ * Accepts multipart (reportFile) or JSON body.
+ * Changing the report content always resets the AI summary to 'Not Generated'.
+ * A title-only change preserves the existing summary.
+ */
+export const replaceConsultationReport = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({
+    _id: req.params.id,
+    doctorId: req.user._id,
+  });
+  if (!consultation) throw AppError.notFound('Report not found');
+
+  const file = req.file;
+  const title = String(req.body.title || '').trim();
+  const originalText = String(req.body.originalText || '').trim();
+  const existing = consultation.medicalReport?.toObject?.() ?? consultation.medicalReport ?? {};
+
+  if (!title) throw AppError.badRequest('Report title is required');
+
+  let contentChanged = false;
+
+  if (file) {
+    // ── PDF replacement ────────────────────────────────────────────────────
+    if (String(file.mimetype || '').toLowerCase() !== 'application/pdf') {
+      throw AppError.badRequest('Only PDF files are accepted');
+    }
+    if (file.size > 10 * 1024 * 1024) throw AppError.badRequest('File too large (max 10 MB)');
+
+    applyPdfMedicalReport(consultation, file, title);
+    contentChanged = true;
+  } else if (originalText) {
+    // ── Text replacement ───────────────────────────────────────────────────
+    if (originalText.length < 10) throw AppError.badRequest('Report text is too short (min 10 characters)');
+
+    consultation.set('medicalReport', {
+      title,
+      fileType: 'text',
+      originalText,
+      pdfName: '',
+      pdfMimeType: '',
+      pdfSizeBytes: 0,
+      pdfBase64: '',
+      uploadedAt: new Date(),
+      summary: { status: 'Not Generated' },
+    });
+    consultation.markModified('medicalReport');
+    contentChanged = true;
+  } else {
+    // ── Title-only update — preserve existing file and summary ─────────────
+    if (title === String(existing.title || '').trim()) {
+      // Nothing to change — return current state
+      const unchanged = await Consultation.findById(consultation._id).lean();
+      return res.json({ success: true, message: 'No changes made', data: toDoctorReportRow(unchanged) });
+    }
+    consultation.set('medicalReport', { ...existing, title });
+    consultation.markModified('medicalReport');
+  }
+
+  await consultation.save();
+
+  await auditLogger({
+    action: contentChanged ? 'REPORT_REPLACED' : 'REPORT_TITLE_UPDATED',
+    target: `Consultation:${consultation._id}`,
+    targetCollection: 'consultations',
+    userId: req.user._id,
+    details: { title, contentChanged },
+  });
+
+  const saved = await Consultation.findById(consultation._id)
+    .populate('patientId', 'name patientId patientCode')
+    .lean();
+  res.json({
+    success: true,
+    message: contentChanged ? 'Report replaced — AI summary has been reset' : 'Report title updated',
+    data: toDoctorReportRow(saved),
+    summaryReset: contentChanged,
+  });
+});
+
+/** DELETE /api/doctor/reports/:id — permanently wipe the medical report from a consultation */
+export const deleteConsultationReport = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({
+    _id: req.params.id,
+    doctorId: req.user._id,
+  });
+  if (!consultation) throw AppError.notFound('Report not found');
+  if (!consultation.medicalReport?.title) throw AppError.notFound('No report to delete');
+
+  consultation.set('medicalReport', null);
+  consultation.markModified('medicalReport');
+  await consultation.save();
+
+  await auditLogger({
+    action: 'REPORT_DELETED',
+    target: `Consultation:${consultation._id}`,
+    targetCollection: 'consultations',
+    userId: req.user._id,
+  });
+
+  res.json({ success: true, message: 'Report deleted permanently' });
+});
+
 /** Legacy POST /api/doctor/reports — requires appointmentId */
 export const uploadDoctorReport = asyncHandler(async (req, res) => {
   const rawAppointmentId = String(req.body.appointmentId || '').trim();
@@ -461,11 +589,7 @@ export const uploadDoctorReport = asyncHandler(async (req, res) => {
   return uploadConsultationMedicalReport(req, res);
 });
 
-/** POST /api/doctor/consultations/:id/medical-report/summarize (id = consultation id) */
-export const summarizeConsultationReport = asyncHandler(async (req, res) => {
-  const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
-  if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
-
+const fetchAiSummaryForConsultation = async (consultation) => {
   const report = consultation.medicalReport;
   const reportText = String(report.originalText || '').trim();
   if (report.fileType !== 'pdf' && reportText.split(/\s+/).filter(Boolean).length < 15) {
@@ -476,10 +600,11 @@ export const summarizeConsultationReport = asyncHandler(async (req, res) => {
     getMedicalTermsMapForAI(),
     SystemSettings.findOne({}).select('aiService').lean(),
   ]);
+  const adminTermCount = Object.keys(adminTerms).length;
   const aiUrl = settingsRow?.aiService?.url || AI_SERVICE_URL;
-  const timeoutMs = (settingsRow?.aiService?.timeoutSeconds || 60) * 1000;
-
-  console.log(`[AI] Sending ${Object.keys(adminTerms).length} admin terms to AI service`);
+  const configuredSec = Number(settingsRow?.aiService?.timeoutSeconds) || 180;
+  // DistilBART single-pass on CPU; allow first cold start but cap at 5 minutes
+  const timeoutMs = Math.min(Math.max(configuredSec, 180), 300) * 1000;
 
   const summarizePayload = {
     text: reportText,
@@ -512,23 +637,28 @@ export const summarizeConsultationReport = asyncHandler(async (req, res) => {
     }
   } catch (fetchErr) {
     const timedOut = fetchErr?.name === 'TimeoutError' || fetchErr?.name === 'AbortError';
-    return res.status(503).json({
-      success: false,
-      message: timedOut
-        ? `AI service timed out after ${timeoutMs / 1000} seconds. The report is saved — try again shortly.`
-        : `AI service unavailable: ${fetchErr.message}. The report is saved — try again later.`,
-    });
+    const message = timedOut
+      ? `AI service timed out after ${timeoutMs / 1000} seconds. The report is saved — try again shortly.`
+      : `AI service unavailable: ${fetchErr.message}. The report is saved — try again later.`;
+    const err = new Error(message);
+    err.statusCode = 503;
+    throw err;
   }
 
   if (!aiResponse.ok) {
     const errorData = await aiResponse.json().catch(() => ({}));
-    return res.status(503).json({
-      success: false,
-      message: errorData.detail || 'AI service unavailable. Original report is still accessible.',
-    });
+    const detail = errorData.detail;
+    const detailMsg = typeof detail === 'string' ? detail : JSON.stringify(detail || '');
+    const err = new Error(detailMsg || 'AI service unavailable. Original report is still accessible.');
+    err.statusCode = 503;
+    throw err;
   }
 
   const aiData = await aiResponse.json();
+  return { aiData, adminTermCount };
+};
+
+const applyAiSummaryToConsultation = (consultation, aiData) => {
   consultation.medicalReport.summary = {
     simplifiedSummary: aiData.summary,
     status: 'Pending Approval',
@@ -544,20 +674,76 @@ export const summarizeConsultationReport = asyncHandler(async (req, res) => {
     editedByDoctor: false,
   };
   consultation.markModified('medicalReport');
-  await consultation.save();
+};
 
-  const bundle = toConsultationBundle(consultation);
-  return res.json({
-    success: true,
-    message: 'Summary generated successfully',
-    data: {
-      ...bundle.summary,
-      adminTermsUsed: Object.keys(adminTerms).length,
-    },
+/** POST /api/doctor/consultations/:id/medical-report/summarize (id = consultation id) */
+export const summarizeConsultationReport = asyncHandler(async (req, res) => {
+  const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
+  if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
+
+  try {
+    const { aiData, adminTermCount } = await fetchAiSummaryForConsultation(consultation);
+    applyAiSummaryToConsultation(consultation, aiData);
+    await consultation.save();
+
+    const bundle = toConsultationBundle(consultation);
+    return res.json({
+      success: true,
+      message: 'Summary generated successfully',
+      data: {
+        ...bundle.summary,
+        adminTermsUsed: adminTermCount,
+      },
+    });
+  } catch (err) {
+    if (err.statusCode === 503) {
+      return res.status(503).json({ success: false, message: err.message });
+    }
+    throw err;
+  }
+});
+
+/** POST reject prior summary (if any) then run AI summarization again */
+export const regenerateConsultationSummary = asyncHandler(async (req, res) => {
+  const consultationId = String(req.params.id || '').trim();
+  const consultation = await Consultation.findOne({
+    _id: consultationId,
+    doctorId: req.user._id,
+    'medicalReport.title': { $nin: [null, ''] },
   });
+  if (!consultation) throw AppError.notFound('Report not found');
+
+  if (consultation.medicalReport.summary) {
+    consultation.medicalReport.summary.status = 'Rejected';
+    consultation.markModified('medicalReport');
+    await consultation.save();
+  }
+
+  try {
+    const { aiData, adminTermCount } = await fetchAiSummaryForConsultation(consultation);
+    applyAiSummaryToConsultation(consultation, aiData);
+    await consultation.save();
+
+    const bundle = toConsultationBundle(consultation);
+    return res.json({
+      success: true,
+      message: 'Summary regenerated successfully',
+      data: {
+        consultationId: consultation._id,
+        ...bundle.summary,
+        adminTermsUsed: adminTermCount,
+      },
+    });
+  } catch (err) {
+    if (err.statusCode === 503) {
+      return res.status(503).json({ success: false, message: err.message });
+    }
+    throw err;
+  }
 });
 
 export const summarizeDoctorReport = summarizeConsultationReport;
+export const regenerateDoctorSummary = regenerateConsultationSummary;
 
 export const approveConsultationSummary = asyncHandler(async (req, res) => {
   const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });

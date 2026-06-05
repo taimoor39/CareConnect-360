@@ -1,4 +1,7 @@
+import { formInputTextStyle } from '@/utils/formInputTextStyle.js';
 import { publicLogoUrl } from '@/utils/publicLogoUrl.js';
+
+export { formInputTextStyle as authInputTextStyle };
 
 const logoUrl = publicLogoUrl();
 
@@ -271,7 +274,7 @@ export const authFieldLabelClass =
 
 /** Matches Login email input — same shell as dashboard `text-sm` controls. */
 export const authTextInputClass =
-  'w-full rounded-xl border border-slate-700/90 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20';
+  'w-full rounded-xl border border-slate-700/90 bg-slate-950/40 px-4 py-3 text-sm outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20';
 
 /**
  * Auth card shell. Optional header uses the same type scale as LoginPage / ForgotPassword.

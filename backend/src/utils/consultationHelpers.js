@@ -1,3 +1,27 @@
+/**
+ * Resolve isDraft after a doctor save.
+ * undefined + Completed appointment → publish to patient portal (fixes stuck drafts).
+ */
+export const resolveIsDraftForSave = (bodyIsDraft, appointmentStatus, consultation) => {
+  if (bodyIsDraft === true) return true;
+  if (bodyIsDraft === false) return false;
+  if (appointmentStatus === 'Completed') return false;
+  return consultation?.isDraft ?? true;
+};
+
+/** Consultations visible to patients: finalized or legacy draft on a completed visit. */
+export const patientVisibleConsultationClause = (completedAppointmentIds = []) => {
+  if (!completedAppointmentIds?.length) {
+    return { isDraft: false };
+  }
+  return {
+    $or: [
+      { isDraft: false },
+      { isDraft: true, appointmentId: { $in: completedAppointmentIds } },
+    ],
+  };
+};
+
 /** Shape consultation for doctor modal (backward-compatible bundle). */
 export const toConsultationBundle = (consultation) => {
   if (!consultation) {
@@ -70,15 +94,20 @@ export const toPatientReportRow = (c, extras = {}) => {
 export const toDoctorReportRow = (c, patientPopulated = null) => {
   const row = c.toObject ? c.toObject() : c;
   const patient = patientPopulated || row.patientId;
-  const summary = row.medicalReport?.summary;
+  const report = row.medicalReport || {};
+  const summary = report.summary;
   return {
     _id: row._id,
     consultationId: row._id,
     appointmentId: row.appointmentId,
     patientId: patient,
-    title: row.medicalReport?.title,
-    fileType: row.medicalReport?.fileType,
-    createdAt: row.medicalReport?.uploadedAt || row.updatedAt,
+    title: report.title,
+    fileType: report.fileType,
+    // Included so the Edit Report modal can display current file info and pre-fill text.
+    pdfName: report.pdfName || '',
+    pdfSizeBytes: report.pdfSizeBytes || 0,
+    originalText: report.fileType === 'text' ? (report.originalText || '') : '',
+    createdAt: report.uploadedAt || row.updatedAt,
     summaryStatus: reportSummaryStatus(row),
     summary:
       summary && summary.status !== 'Not Generated'

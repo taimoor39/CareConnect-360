@@ -8,6 +8,15 @@ import { generateSummaryPDF } from '@/utils/generateSummaryPDF.js';
 const DISCLAIMER =
   'This summary is for informational purposes only and does not constitute medical advice.';
 
+const SUMMARY_PENDING_COPY = {
+  'Not Generated':
+    'Your doctor has uploaded this report. A simplified summary has not been generated yet. You can still view or download the original report below.',
+  'Pending Approval':
+    'Your doctor is reviewing the AI-generated summary. The original report is available below; the simplified summary will appear once approved.',
+  Rejected:
+    'The simplified summary for this report is not available. You can still view or download the original report below.',
+};
+
 function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -38,7 +47,7 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
         if (!cancelled) setData(res.data?.data || null);
       } catch (e) {
         if (!cancelled) {
-          if (e.response?.status === 403) {
+          if (e.response?.status === 403 || e.response?.status === 404) {
             setForbidden(true);
             setData(null);
           } else {
@@ -87,13 +96,16 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
   };
 
   const showOriginalPdfDownload = data?.hasPdfDownload || data?.fileType === 'pdf';
-  const showSummaryDownload = data?.summaryStatus === 'Approved' && data?.simplifiedSummary?.trim();
+  const showSummaryDownload = Boolean(data?.simplifiedSummary?.trim());
+  const showApprovedSummary = data?.summaryStatus === 'Approved' && Boolean(data?.simplifiedSummary?.trim());
+  const showOriginalText = Boolean(data?.originalText?.trim());
+  const pendingCopy = SUMMARY_PENDING_COPY[data?.summaryStatus];
 
   return (
     <CareModal
       open={open}
       onClose={onClose}
-      title={data?.title || 'Report summary'}
+      title={data?.title || 'Medical report'}
       size="wide"
       alignTop
       footer={
@@ -133,8 +145,19 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
         )
       }
     >
-      <div className="rounded-[var(--radius-md)] border border-teal-500/35 bg-teal-500/[0.07] p-4 text-sm leading-relaxed text-teal-50/95">
-        {DISCLAIMER}
+      <div
+        style={{
+          padding: '12px 16px',
+          background: 'rgba(217,119,6,0.08)',
+          border: '1px solid rgba(217,119,6,0.2)',
+          borderRadius: 8,
+          fontSize: 13,
+          color: '#fbbf24',
+          marginBottom: 16,
+          lineHeight: 1.5,
+        }}
+      >
+        ⚠️ {DISCLAIMER} Always consult with your healthcare provider.
       </div>
 
       {loading ? (
@@ -145,11 +168,11 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
         </div>
       ) : null}
 
-      {forbidden && !loading ? (
-        <p className="mt-6 text-sm text-[var(--text-secondary)]">This report is not yet available.</p>
+      {(forbidden || (!loading && !data)) && !loading ? (
+        <p className="mt-6 text-sm text-[var(--text-secondary)]">This report is not available.</p>
       ) : null}
 
-      {!loading && data && data.summaryStatus !== 'Approved' ? (
+      {!loading && data ? (
         <>
           <div className="mt-6 space-y-1 text-sm text-[var(--text-secondary)]">
             <p>
@@ -159,57 +182,42 @@ function ReportSummaryModal({ open, reportId, patient, onClose }) {
               <span className="text-[var(--text-muted)]">Date uploaded: </span>
               {formatDate(data.uploadedAt)}
             </p>
-            <p>
-              <span className="text-[var(--text-muted)]">Status: </span>
-              {data.summaryStatus === 'Pending Approval'
-                ? 'Summary pending doctor review'
-                : data.summaryStatus === 'Rejected'
-                  ? 'Summary being revised by your doctor'
-                  : 'Report saved — summary not yet generated'}
-            </p>
+            {showApprovedSummary ? (
+              <p>
+                <span className="text-[var(--text-muted)]">Summary approved: </span>
+                {data.approvedByName ? `Dr. ${data.approvedByName}` : '—'}
+                {data.approvedAt ? ` on ${formatDateTime(data.approvedAt)}` : ''}
+              </p>
+            ) : null}
           </div>
 
-          {data.originalText?.trim() ? (
+          {pendingCopy ? (
+            <p className="mt-6 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4 text-sm leading-relaxed text-[var(--text-secondary)]">
+              {pendingCopy}
+            </p>
+          ) : null}
+
+          {showOriginalText ? (
             <>
               <p className="mt-8 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--teal-light)]">
-                Report text
+                Original report
               </p>
-              <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-base leading-[1.8] text-[var(--text-primary)] whitespace-pre-wrap">
+              <div className="mt-3 whitespace-pre-wrap rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-base leading-[1.8] text-[var(--text-primary)]">
                 {data.originalText}
               </div>
             </>
-          ) : showOriginalPdfDownload ? (
-            <p className="mt-6 text-sm text-[var(--text-secondary)]">
-              Your doctor uploaded this report as a PDF. Use <strong>Download report PDF</strong> below to save a copy.
-              {data.summaryStatus === 'Not Generated'
-                ? ' A simplified summary may be added after your doctor reviews it.'
-                : ' A simplified summary will appear here once it has been reviewed and approved.'}
-            </p>
           ) : null}
-        </>
-      ) : null}
 
-      {!loading && data && data.summaryStatus === 'Approved' ? (
-        <>
-          <div className="mt-6 space-y-1 text-sm text-[var(--text-secondary)]">
-            <p>
-              <span className="text-[var(--text-muted)]">Doctor: </span>Dr. {data.doctorName}
-            </p>
-            <p>
-              <span className="text-[var(--text-muted)]">Date uploaded: </span>
-              {formatDate(data.uploadedAt)}
-            </p>
-            <p>
-              <span className="text-[var(--text-muted)]">Approved: </span>
-              {data.approvedByName ? `Dr. ${data.approvedByName}` : '—'}
-              {data.approvedAt ? ` on ${formatDateTime(data.approvedAt)}` : ''}
-            </p>
-          </div>
-
-          <p className="mt-8 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--teal-light)]">Your health summary</p>
-          <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-base leading-[1.8] text-[var(--text-primary)]">
-            {data.simplifiedSummary}
-          </div>
+          {showApprovedSummary ? (
+            <>
+              <p className="mt-8 text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-[var(--teal-light)]">
+                Your health summary
+              </p>
+              <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-5 text-base leading-[1.8] text-[var(--text-primary)]">
+                {data.simplifiedSummary}
+              </div>
+            </>
+          ) : null}
 
           {data.medicalTermsExplained?.length ? (
             <details className="mt-6 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4">

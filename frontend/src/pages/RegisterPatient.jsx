@@ -9,6 +9,7 @@ import {
   AuthSplitLayout,
   ShieldGlyph,
   authFieldLabelClass,
+  authInputTextStyle,
   authTextInputClass,
 } from '@/shared/components/auth/AuthSplitLayout.jsx';
 import { PasswordInput } from '@/shared/components/PasswordField.jsx';
@@ -123,6 +124,7 @@ function RegisterPatient() {
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
                 autoComplete="given-name"
+                style={authInputTextStyle}
                 className={authTextInputClass}
               />
             </div>
@@ -136,6 +138,7 @@ function RegisterPatient() {
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
                 autoComplete="family-name"
+                style={authInputTextStyle}
                 className={authTextInputClass}
               />
             </div>
@@ -153,6 +156,7 @@ function RegisterPatient() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
+              style={authInputTextStyle}
               className={authTextInputClass}
             />
           </div>
@@ -168,6 +172,7 @@ function RegisterPatient() {
               autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              style={authInputTextStyle}
               className={authTextInputClass}
             />
           </div>
@@ -182,6 +187,7 @@ function RegisterPatient() {
               type="date"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
+              style={authInputTextStyle}
               className={authTextInputClass}
             />
           </div>
@@ -194,6 +200,7 @@ function RegisterPatient() {
               id="reg-gender"
               value={gender}
               onChange={(e) => setGender(e.target.value)}
+              style={authInputTextStyle}
               className={selectClass}
             >
               <option value="female">Female</option>

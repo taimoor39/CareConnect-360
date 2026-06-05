@@ -1,4 +1,5 @@
 import { forwardRef, useState } from 'react';
+import { formInputTextStyle } from '@/utils/formInputTextStyle.js';
 
 /** Heroicons-style outline — tuned for 18–20px display */
 export function IconEye({ size = 20 }) {
@@ -64,7 +65,7 @@ export function PasswordRevealButton({ visible, onToggle, className = '', disabl
  * @param {'sm'|'md'} size
  */
 export const PasswordInput = forwardRef(function PasswordInput(
-  { className = '', inputClassName = '', size = 'md', disabled, ...props },
+  { className = '', inputClassName = '', size = 'md', disabled, style, ...props },
   ref,
 ) {
   const [visible, setVisible] = useState(false);
@@ -82,7 +83,8 @@ export const PasswordInput = forwardRef(function PasswordInput(
         {...props}
         disabled={disabled}
         type={visible ? 'text' : 'password'}
-        className={`w-full border border-slate-700/90 bg-slate-950/40 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${pad} ${inputClassName}`}
+        style={{ ...formInputTextStyle, ...style }}
+        className={`w-full border border-slate-700/90 bg-slate-950/40 outline-none transition placeholder:text-slate-500 focus:border-teal-500/45 focus:ring-1 focus:ring-teal-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${pad} ${inputClassName}`}
       />
       <PasswordRevealButton visible={visible} onToggle={() => setVisible((v) => !v)} disabled={disabled} />
     </div>

@@ -39,7 +39,7 @@ const defaultInvoiceForm = {
   items: [{ description: 'Consultation Fee', quantity: 1, unitPrice: '' }],
   discount: '',
   taxPercent: '',
-  paymentStatus: '',
+  paymentStatus: 'Unpaid',
   paymentMethod: '',
   paidAmount: '',
   notes: '',

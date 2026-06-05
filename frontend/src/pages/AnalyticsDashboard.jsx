@@ -450,10 +450,29 @@ function AnalyticsDashboard() {
     setter({ key, dir: current.key === key && current.dir === 'desc' ? 'asc' : 'desc' });
   };
 
+  const chartTooltipStyle = { background: '#0f172a', border: '1px solid #334155', borderRadius: 10 };
+
   const renderPatientsTab = () => {
     if (loadingTab) return <div className="glass-panel rounded-2xl p-5 text-sm text-slate-400">Loading patients analytics...</div>;
     if (!patientsData || patientsData === 'error') return <div className="glass-panel rounded-2xl p-5 text-sm text-rose-300">Patients analytics unavailable</div>;
     const totalRow = patientsData.table?.total || {};
+    const genderRows = patientsData.demographics?.gender || [];
+    const genderTotal = genderRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+    const renderGenderTooltip = ({ active, payload }) => {
+      if (!active || !payload?.length) return null;
+      const entry = payload[0];
+      const name = entry.name ?? entry.payload?.name ?? '—';
+      const count = Number(entry.value ?? entry.payload?.count ?? 0);
+      const share = genderTotal > 0 ? ((count / genderTotal) * 100).toFixed(1) : '0.0';
+      return (
+        <div className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-xs shadow-lg">
+          <p className="font-medium text-slate-100">{name}</p>
+          <p className="mt-0.5 text-teal-300">
+            {intTick(count)} patients ({share}%)
+          </p>
+        </div>
+      );
+    };
     return (
       <div className="space-y-4">
         <div className="grid gap-4 xl:grid-cols-5">
@@ -480,14 +499,17 @@ function AnalyticsDashboard() {
               <div className="relative h-[160px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={patientsData.demographics?.gender || []} dataKey="count" innerRadius={45} outerRadius={65}>
-                      {(patientsData.demographics?.gender || []).map((row) => (
+                    <Pie data={genderRows} dataKey="count" nameKey="name" innerRadius={45} outerRadius={65} stroke="#0f172a" strokeWidth={1}>
+                      {genderRows.map((row) => (
                         <Cell key={row.name} fill={row.name === 'Male' ? '#3b82f6' : row.name === 'Female' ? '#ec4899' : '#6b7280'} />
                       ))}
                     </Pie>
+                    <Tooltip content={renderGenderTooltip} wrapperStyle={{ zIndex: 30 }} />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-slate-300">Gender</div>
+                <p className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-slate-300">
+                  Gender
+                </p>
               </div>
             </div>
             <div className="glass-panel rounded-2xl p-4">
@@ -497,7 +519,13 @@ function AnalyticsDashboard() {
                   <BarChart data={patientsData.demographics?.bloodGroups || []}>
                     <XAxis dataKey="group" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
+                    <Tooltip
+                      cursor={false}
+                      contentStyle={chartTooltipStyle}
+                      itemStyle={{ color: '#14b8a6' }}
+                      labelStyle={{ color: '#f1f5f9' }}
+                      formatter={(value) => [intTick(value), 'Patients']}
+                    />
                     <Bar dataKey="count" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -630,7 +658,11 @@ function AnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="period" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} tickFormatter={intTick} />
-                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
+                  <Tooltip
+                    cursor={false}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={{ color: '#f1f5f9' }}
+                  />
                   <Legend />
                   <Bar dataKey="completed" fill="#14b8a6" name="Completed" />
                   <Bar dataKey="missed" fill="#dc2626" name="Missed" />
@@ -853,6 +885,16 @@ function AnalyticsDashboard() {
     if (loadingTab) return <div className="glass-panel rounded-2xl p-5 text-sm text-slate-400">Loading doctors analytics...</div>;
     if (!doctorsData || doctorsData === 'error') return <div className="glass-panel rounded-2xl p-5 text-sm text-rose-300">Doctors analytics unavailable</div>;
     const sortedTable = sortRows(doctorsData.table || [], doctorSort);
+    const renderConsultationVolumeTooltip = ({ active, payload, label }) => {
+      if (!active || !payload?.length) return null;
+      const count = Number(payload[0]?.value ?? payload[0]?.payload?.consultations ?? 0);
+      return (
+        <div className="rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-xs shadow-lg">
+          <p className="font-medium text-slate-100">{label}</p>
+          <p className="mt-0.5 text-teal-300">{intTick(count)} consultations</p>
+        </div>
+      );
+    };
     return (
       <div className="space-y-4">
         <div className="grid gap-3 lg:grid-cols-3">
@@ -895,9 +937,10 @@ function AnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} tickFormatter={intTick} />
                   <YAxis type="category" dataKey="doctor" width={110} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
+                  <Tooltip content={renderConsultationVolumeTooltip} cursor={false} wrapperStyle={{ zIndex: 30 }} />
                   <Bar
                     dataKey="consultations"
+                    name="Consultations"
                     radius={[0, 4, 4, 0]}
                   >
                     {(doctorsData.consultationVolume || []).map((d) => (
@@ -916,11 +959,16 @@ function AnalyticsDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis dataKey="doctor" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                   <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} tickFormatter={intTick} />
-                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
+                  <Tooltip
+                    cursor={false}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={{ color: '#f1f5f9' }}
+                    itemStyle={{ color: '#e2e8f0' }}
+                  />
                   <Legend />
-                  <Bar dataKey="completed" stackId="a" fill="#16a34a" />
-                  <Bar dataKey="missed" stackId="a" fill="#dc2626" />
-                  <Bar dataKey="cancelled" stackId="a" fill="#64748b" />
+                  <Bar dataKey="completed" stackId="a" fill="#16a34a" name="Completed" />
+                  <Bar dataKey="missed" stackId="a" fill="#dc2626" name="Missed" />
+                  <Bar dataKey="cancelled" stackId="a" fill="#64748b" name="Cancelled" />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -162,7 +162,7 @@ function PatientDashboard() {
           <StatCard
             label="Reports ready"
             value={loading ? '—' : reportsReady}
-            sub="Approved summaries"
+            sub="Medical reports"
             valueColor="#4ade80"
             onClick={() => navigate('/patient/reports')}
           />

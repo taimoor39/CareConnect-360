@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { formatDate } from '../../utils/dateHelpers.js';
 import DateDropdown from '../ui/DateDropdown.jsx';
 import DateFieldCard from '../ui/DateFieldCard.jsx';
@@ -21,6 +22,15 @@ function GenerateInvoiceModal({
   saving,
   onSubmit,
 }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const step = mode === 'edit' ? 2 : (selectedAppointment ? 2 : 1);

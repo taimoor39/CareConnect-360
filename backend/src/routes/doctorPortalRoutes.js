@@ -16,6 +16,9 @@ import {
   getDoctorReports,
   getDoctorSchedule,
   rejectConsultationSummary,
+  regenerateConsultationSummary,
+  replaceConsultationReport,
+  deleteConsultationReport,
   saveConsultationPrescription,
   summarizeConsultationReport,
   updateConsultation,
@@ -73,6 +76,7 @@ router.post('/consultations', consultationValidator, validate, createConsultatio
 router.put('/consultations/:id', updateConsultationValidator, validate, updateConsultation);
 
 router.post('/consultations/:id/medical-report/summarize', objectIdParamValidator, validate, summarizeConsultationReport);
+router.post('/consultations/:id/medical-report/regenerate-summary', objectIdParamValidator, validate, regenerateConsultationSummary);
 router.put('/consultations/:id/medical-report/approve-summary', objectIdParamValidator, validate, approveConsultationSummary);
 router.put('/consultations/:id/medical-report/reject-summary', objectIdParamValidator, validate, rejectConsultationSummary);
 
@@ -81,8 +85,11 @@ router.post('/prescriptions', prescriptionValidator, validate, saveConsultationP
 
 router.get('/reports', getDoctorReports);
 router.post('/reports', upload.single('file'), reportValidator, validate, uploadDoctorReport);
+router.put('/reports/:id/replace', objectIdParamValidator, validate, upload.single('reportFile'), replaceConsultationReport);
+router.delete('/reports/:id', objectIdParamValidator, validate, deleteConsultationReport);
 
 router.post('/reports/:id/summarize', objectIdParamValidator, validate, summarizeConsultationReport);
+router.post('/reports/:id/regenerate-summary', objectIdParamValidator, validate, regenerateConsultationSummary);
 router.put('/reports/:id/approve-summary', objectIdParamValidator, validate, approveConsultationSummary);
 router.put('/reports/:id/reject-summary', objectIdParamValidator, validate, rejectConsultationSummary);
 

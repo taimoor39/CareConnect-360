@@ -813,7 +813,7 @@ function PatientProfile() {
               sub: 'On file',
             },
             {
-              label: 'Approved reports',
+              label: 'Medical reports',
               value: dash?.reports ?? 0,
               color: 'var(--text-primary)',
               sub: 'Summaries you can read',

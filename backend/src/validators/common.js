@@ -1,5 +1,6 @@
 import { body, param } from 'express-validator';
 import { dayBoundsInPakistan, isISODateOnly, toPakistanISODate } from '../utils/dateTime.js';
+import { validateShiftTimes } from '../utils/timeHelpers.js';
 
 // ─── Shared enums ─────────────────────────────────────────────────────────
 export const ROLES = Object.freeze(['admin', 'doctor', 'receptionist', 'patient']);
@@ -230,7 +231,14 @@ export const scheduleRules = (prefix = 'schedule', { optional = false } = {}) =>
     .custom((days) => days.every((day) => DAYS_OF_WEEK.includes(day)))
     .withMessage(`Invalid day value — allowed: ${DAYS_OF_WEEK.join(', ')}`);
 
-  const shiftEndChain = timeRule(path('shiftEnd'), { optional: true, label: 'Shift end' });
+  const shiftEndChain = timeRule(path('shiftEnd'), { optional: true, label: 'Shift end' })
+    .custom((end, { req }) => {
+      const start = prefix ? req.body?.[prefix]?.shiftStart : req.body?.shiftStart;
+      if (!start || !end) return true;
+      const result = validateShiftTimes(start, end);
+      if (!result.valid) throw new Error(result.error);
+      return true;
+    });
 
   return [
     daysRule,

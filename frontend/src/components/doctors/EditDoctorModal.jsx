@@ -4,19 +4,7 @@ import { toast } from 'react-toastify';
 import { updateDoctor } from '../../api/doctors.js';
 import useDoctorForm, { defaultDoctorForm } from '../../hooks/useDoctorForm.js';
 import CareModal from '@/shared/components/CareModal.jsx';
-
-const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-function isOvernightShift(start, end) {
-  const s = String(start || '').trim();
-  const e = String(end || '').trim();
-  if (!HM.test(s) || !HM.test(e)) return false;
-  const mins = (t) => {
-    const [h, m] = t.split(':').map(Number);
-    return h * 60 + m;
-  };
-  return mins(e) <= mins(s);
-}
+import { isOvernightShift } from '../../utils/timeHelpers.js';
 
 const toForm = (doctor) => ({
   specialization: doctor?.specialization || doctor?.profile?.specialization || '',

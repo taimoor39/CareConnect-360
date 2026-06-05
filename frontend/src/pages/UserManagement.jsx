@@ -23,6 +23,7 @@ import {
   updatePortalRequestEmail,
 } from '../api/portalAccess.js';
 import ApproveRequestModal from '../components/portalAccess/ApproveRequestModal.jsx';
+import { formatDate as formatDatePKT } from '../utils/dateHelpers.js';
 import EditEmailModal from '../components/portalAccess/EditEmailModal.jsx';
 import PortalRequestsTable from '../components/portalAccess/PortalRequestsTable.jsx';
 import RejectRequestModal from '../components/portalAccess/RejectRequestModal.jsx';
@@ -236,10 +237,7 @@ function UserManagement() {
     return <Navigate to="/login" replace />;
   }
 
-  const formatDate = (value) =>
-    value
-      ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      : '-';
+  const formatDate = (value) => (value ? formatDatePKT(value) : '—');
   const relativeTime = (value) => {
     if (!value) return '';
     const diff = Date.now() - new Date(value).getTime();

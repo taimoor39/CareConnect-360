@@ -3,17 +3,55 @@ import { useOutletContext } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getMyReports } from '@/api/patientPortal.js';
 import PatientPaginationBar from '@features/patient-portal/components/PatientPaginationBar.jsx';
-import EmptyState, { EmptyStateIconInbox } from '@/shared/components/EmptyState.jsx';
 import ReportSummaryModal from '@features/patient-portal/components/ReportSummaryModal.jsx';
-import Badge from '@/shared/components/Badge.jsx';
 import Card from '@/shared/components/Card.jsx';
 import { formatDate } from '@/utils/dateHelpers.js';
 
-const statusMeta = {
-  Approved: { badge: 'approved', label: 'Approved summary' },
-  'Pending Approval': { badge: 'pending', label: 'Summary pending review' },
-  Rejected: { badge: 'missed', label: 'Summary being revised' },
-  'Not Generated': { badge: 'scheduled', label: 'Report on file' },
+function ReportsEmptyState() {
+  return (
+    <div
+      style={{
+        textAlign: 'center',
+        padding: '48px 24px',
+        color: '#64748b',
+      }}
+    >
+      <svg
+        style={{ marginBottom: 16, opacity: 0.4 }}
+        width="40"
+        height="40"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 500,
+          color: '#94a3b8',
+          marginBottom: 4,
+        }}
+      >
+        No reports available yet
+      </div>
+      <div style={{ fontSize: 12, color: '#64748b' }}>
+        Your doctor will share medical reports here after your visit is completed
+      </div>
+    </div>
+  );
+}
+
+const SUMMARY_STATUS_LABEL = {
+  Approved: 'Summary approved',
+  'Pending Approval': 'Summary pending review',
+  Rejected: 'Summary not available',
+  'Not Generated': 'Summary not yet generated',
 };
 
 function PatientReports() {
@@ -51,7 +89,7 @@ function PatientReports() {
         }}
       >
         <p className="m-0 text-xs leading-relaxed text-[var(--text-muted)]">
-          Your medical reports from completed visits appear here. When your doctor approves an AI summary, it will be shown alongside the report.
+          Medical reports uploaded by your doctor appear here. You can download PDF reports or read text reports anytime. A simplified health summary is shown only after your doctor has reviewed and approved it.
         </p>
       </Card>
 
@@ -61,57 +99,40 @@ function PatientReports() {
           <div className="skeleton h-32 w-full rounded-[var(--radius-lg)]" />
         </div>
       ) : null}
+
       {!loading && rows.length === 0 ? (
         <Card padding="0">
-          <EmptyState
-            icon={<EmptyStateIconInbox />}
-            title="No reports available yet"
-            subtitle="Reports uploaded by your doctor during a consultation will appear here."
-          />
+          <ReportsEmptyState />
         </Card>
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {rows.map((r) => {
-          const meta = statusMeta[r.summaryStatus] || statusMeta['Not Generated'];
-          const isApproved = r.summaryStatus === 'Approved';
-          return (
-            <Card key={r._id} padding="20px 22px">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge type={meta.badge} label={meta.label} />
-                {r.fileType === 'pdf' ? (
-                  <span className="text-[0.6875rem] uppercase tracking-wide text-[var(--text-muted)]">PDF</span>
-                ) : null}
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-[var(--text-primary)]">{r.title || 'Report'}</h3>
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
-                Uploaded {r.uploadedAt ? formatDate(r.uploadedAt) : '—'}
-                {r.doctorName ? ` · Dr. ${r.doctorName}` : ''}
-                {isApproved && r.approvedByName ? ` · Approved by Dr. ${r.approvedByName}` : ''}
-                {isApproved && r.approvedAt ? ` · ${formatDate(r.approvedAt)}` : ''}
-              </p>
-              {!isApproved ? (
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  {r.fileType === 'text'
-                    ? 'You can view the report text now. A simplified summary may be added after your doctor reviews it.'
-                    : 'Open this report to download the PDF uploaded by your doctor.'}
-                </p>
-              ) : null}
-              <button type="button" onClick={() => setOpenId(r.reportId)} className="care-btn-primary mt-4">
-                {isApproved ? 'View summary →' : 'View report →'}
-              </button>
-            </Card>
-          );
-        })}
+        {rows.map((r) => (
+          <Card key={r._id} padding="20px 22px">
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{r.title || 'Report'}</h3>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              Uploaded {r.uploadedAt ? formatDate(r.uploadedAt) : '—'}
+              {r.doctorName ? ` · Dr. ${r.doctorName}` : ''}
+            </p>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              {SUMMARY_STATUS_LABEL[r.summaryStatus] || r.summaryStatus || 'Report on file'}
+            </p>
+            <button type="button" onClick={() => setOpenId(r.reportId)} className="care-btn-primary mt-4">
+              View report →
+            </button>
+          </Card>
+        ))}
       </div>
 
-      <PatientPaginationBar
-        page={pagination.page || page}
-        pages={pagination.pages || 1}
-        total={pagination.total || 0}
-        limit={pagination.limit || 10}
-        onPageChange={setPage}
-      />
+      {!loading && rows.length > 0 ? (
+        <PatientPaginationBar
+          page={pagination.page || page}
+          pages={pagination.pages || 1}
+          total={pagination.total || 0}
+          limit={pagination.limit || 10}
+          onPageChange={setPage}
+        />
+      ) : null}
 
       <ReportSummaryModal open={!!openId} reportId={openId} patient={patient} onClose={() => setOpenId(null)} />
     </div>

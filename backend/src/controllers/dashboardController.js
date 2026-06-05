@@ -10,6 +10,12 @@ import User from '../models/User.js';
 
 import asyncHandler from '../utils/asyncHandler.js';
 import { toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
+import {
+  ensureSettingsDoc,
+  isEmailConfigured,
+  probeAiService,
+  resolveAiServiceUrl,
+} from '../utils/systemHealthChecks.js';
 
 // ─── Constants / caches ───────────────────────────────────────────────────
 
@@ -211,29 +217,27 @@ export const getRecentPatients = asyncHandler(async (_req, res) => {
 
 export const getSystemHealth = asyncHandler(async (_req, res) => {
   const { start: todayStart, end: todayEnd } = startEndOfToday();
+  const settings = await ensureSettingsDoc();
+  const aiBaseUrl = resolveAiServiceUrl(settings);
 
   const checks = await Promise.allSettled([
     withTimeout(async () => {
       const t = Date.now();
       await Patient.findOne().select('_id').lean();
-      return { service: 'Database Connection', status: 'Connected', responseMs: Date.now() - t };
+      return { service: 'Database', status: 'Connected', responseMs: Date.now() - t };
     }),
     withTimeout(async () => {
-      const t = Date.now();
-      const base = String(process.env.AI_SERVICE_URL || '').trim();
-      if (!base) return { service: 'AI Microservice', status: 'Offline', responseMs: null, warning: 'AI summarization unavailable' };
-      await fetch(`${base}/api/health`);
-      const ms = Date.now() - t;
+      const result = await probeAiService(aiBaseUrl, 5000);
       return {
-        service: 'AI Microservice',
-        status: ms > 2000 ? 'Slow' : 'Online',
-        responseMs: ms,
-        warning: ms > 2000 ? 'AI responses are slower than expected' : '',
+        service: 'AI Service',
+        status: result.status,
+        responseMs: result.responseMs,
+        warning: result.warning || '',
       };
     }),
     withTimeout(async () => ({
       service: 'Email Service',
-      status: (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) ? 'Configured' : 'Not Configured',
+      status: isEmailConfigured(settings) ? 'Configured' : 'Not Configured',
       responseMs: null,
     })),
     withTimeout(async () => {

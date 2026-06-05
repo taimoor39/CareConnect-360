@@ -169,7 +169,11 @@ function AuditTable({
           <span>Rows per page:</span>
           <select
             value={filters.limit}
-            onChange={(e) => setFilters((p) => ({ ...p, page: 1, limit: Number(e.target.value) }))}
+            onChange={(e) => setFilters((p) => ({ ...p, page: 1, limit: e.target.value }))}
+            onBlur={(e) => {
+              const n = parseInt(e.target.value, 10);
+              setFilters((p) => ({ ...p, page: 1, limit: Number.isNaN(n) ? 10 : n }));
+            }}
             className="rounded border border-slate-700 bg-slate-900/80 px-2 py-1 text-xs"
           >
             <option value={10}>10</option>

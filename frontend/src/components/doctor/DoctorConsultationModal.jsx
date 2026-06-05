@@ -3,11 +3,12 @@ import { toast } from 'react-toastify';
 import { getAppointmentById, updateAppointmentStatus } from '../../api/appointments.js';
 import {
   approveAISummary,
+  deleteConsultationReport,
   generateAISummary,
   getAppointmentConsultation,
-  rejectAISummary,
   upsertAppointmentConsultation,
 } from '../../api/doctor.js';
+import { aiSummaryErrorMessage, runRegenerateAISummary } from '../../utils/regenerateAISummary.js';
 import AISummaryReview from './AISummaryReview.jsx';
 import PrescriptionForm from './PrescriptionForm.jsx';
 import ReportUploadForm from './ReportUploadForm.jsx';
@@ -31,7 +32,7 @@ function apiErrorMessage(error, fallback) {
   return fallback;
 }
 
-function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSaved }) {
+function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSaved, initialTab = 'notes' }) {
   const [activeTab, setActiveTab] = useState('notes');
   const [symptoms, setSymptoms] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
@@ -47,6 +48,7 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
   const [summary, setSummary] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [uploadingReport, setUploadingReport] = useState(false);
+  const [deletingReport, setDeletingReport] = useState(false);
   const [showUnavailableBanner, setShowUnavailableBanner] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -99,8 +101,17 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
       setReportMode(savedReport.fileType === 'pdf' ? 'pdf' : 'text');
       if (savedReport.fileType === 'text' && savedReport.originalText) {
         setReportText(savedReport.originalText);
+      } else {
+        setReportText('');
       }
       setReportFile(null);
+    } else {
+      // Important: clear previous patient's report draft so it never leaks
+      // into another patient's consultation modal.
+      setReportTitle('');
+      setReportText('');
+      setReportFile(null);
+      setReportMode('text');
     }
     setShowUnavailableBanner(false);
   }, []);
@@ -126,11 +137,12 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
 
   useEffect(() => {
     if (!open || !appointment?._id) return undefined;
+    setActiveTab(initialTab);
     refreshBundle();
     return () => {
       loadGenerationRef.current += 1;
     };
-  }, [open, appointment?._id, refreshBundle]);
+  }, [open, appointment?._id, initialTab, refreshBundle]);
 
   if (!open || !appointment) return null;
 
@@ -207,7 +219,7 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
     }
     setSavingDraft(true);
     try {
-      await saveConsultationRecord(isCompleted ? undefined : true);
+      await saveConsultationRecord(isCompleted ? false : true);
       toast.success(isCompleted ? 'Consultation updated' : 'Consultation saved successfully');
       onSaved?.();
     } catch (error) {
@@ -274,7 +286,7 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
       return;
     }
     try {
-      await persistConsultation(isCompleted ? undefined : true);
+      await persistConsultation(isCompleted ? false : true);
       toast.success('Prescription saved');
       onSaved?.();
     } catch (error) {
@@ -299,7 +311,7 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
     }
     setUploadingReport(true);
     try {
-      const payload = buildConsultationPayload(isCompleted ? undefined : true);
+      const payload = buildConsultationPayload(isCompleted ? false : true);
       payload.medicalReport =
         mode === 'pdf'
           ? { title, fileType: 'pdf' }
@@ -316,6 +328,34 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
       toast.error(apiErrorMessage(error, 'Could not save report'));
     } finally {
       setUploadingReport(false);
+    }
+  };
+
+  const handleDeleteReport = async () => {
+    const summaryStatus = summary?.status;
+    const isApproved = summaryStatus === 'Approved';
+    const msg = isApproved
+      ? 'Delete this report permanently? The approved AI summary visible to the patient will also be removed. This cannot be undone.'
+      : 'Delete this report permanently? This cannot be undone.';
+    if (!window.confirm(msg)) return;
+
+    const targetId = consultationId || report?._id;
+    if (!targetId) { toast.error('Report ID missing'); return; }
+    setDeletingReport(true);
+    try {
+      await deleteConsultationReport(targetId);
+      setReport(null);
+      setSummary(null);
+      setReportTitle('');
+      setReportText('');
+      setReportFile(null);
+      setReportMode('text');
+      toast.success('Report deleted — you can now upload a new one');
+      onSaved?.();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete report');
+    } finally {
+      setDeletingReport(false);
     }
   };
 
@@ -399,11 +439,22 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
           {!loadingBundle && activeTab === 'report' ? (
             <div className="space-y-4">
               {report?.title ? (
-                <div className="rounded-lg border border-teal-300/20 bg-teal-400/5 p-3 text-sm text-teal-100">
-                  <p className="font-medium">Saved report: {report.title}</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {report.fileType === 'pdf' ? 'PDF upload' : 'Text report'} · included when you Save Draft
-                  </p>
+                <div className="flex items-start gap-2 rounded-lg border border-teal-300/20 bg-teal-400/5 p-3 text-sm text-teal-100">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">Saved report: {report.title}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {report.fileType === 'pdf' ? 'PDF upload' : 'Text report'} · included when you Save Draft
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    title="Delete this report permanently"
+                    disabled={deletingReport || generating}
+                    onClick={handleDeleteReport}
+                    className="shrink-0 rounded border border-rose-500/40 px-2 py-0.5 text-xs font-bold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40"
+                  >
+                    {deletingReport ? '…' : '×'}
+                  </button>
                 </div>
               ) : null}
               <ReportUploadForm
@@ -430,12 +481,20 @@ function DoctorConsultationModal({ open, appointment, doctorName, onClose, onSav
                   onRejectRegenerate={async () => {
                     const summaryTargetId = consultationId || report?._id;
                     if (!summaryTargetId) return;
+                    setGenerating(true);
+                    setShowUnavailableBanner(false);
                     try {
-                      await rejectAISummary(summaryTargetId);
-                      setSummary(null);
-                      toast.warning('Summary rejected');
+                      const data = await runRegenerateAISummary(summaryTargetId);
+                      setSummary(data);
+                      toast.success('Summary regenerated for this report');
+                      onSaved?.();
                     } catch (error) {
-                      toast.error(error.response?.data?.message || 'Could not reject summary');
+                      if (error.response?.status === 503) {
+                        setShowUnavailableBanner(true);
+                      }
+                      toast.error(aiSummaryErrorMessage(error, 'Could not regenerate summary'));
+                    } finally {
+                      setGenerating(false);
                     }
                   }}
                   onApprove={async (editedSummary) => {
