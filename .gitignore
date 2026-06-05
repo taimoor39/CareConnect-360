@@ -1,51 +1,187 @@
-# Dependencies
-/node_modules/
-frontend/node_modules/
-backend/node_modules/
+# =============================================================================
+# CareConnect 360 — .gitignore
+# =============================================================================
 
-# Environment files
-.env
-.env.*
-backend/.env
-backend/.env.*
-ai-service/.env
-ai-service/.env.*
-
-# Build output
-frontend/dist/
-backend/dist/
-frontend/.vite/
-*.tsbuildinfo
-
-# Logs and coverage
-*.log
+# ── Node / npm ────────────────────────────────────────────────────────────────
+# Covers root, frontend/, and backend/ node_modules in one pattern
+**/node_modules/
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.yarn/
+*.tgz
+
+# ── Build output ──────────────────────────────────────────────────────────────
+frontend/dist/
+frontend/.vite/
+backend/dist/
+*.tsbuildinfo
+
+# ── Environment files ─────────────────────────────────────────────────────────
+# Never commit secrets or local config — each developer creates their own.
+# Use *.example files (tracked) to document required variables.
+.env
+.env.*
+!.env.example
+!.env.*.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+ai-service/.env
+ai-service/.env.*
+!ai-service/.env.example
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
 logs/
+**/logs/
 backend/logs/
+
+# ── Test & coverage ───────────────────────────────────────────────────────────
 coverage/
 .nyc_output/
+.coverage
+htmlcov/
+.pytest_cache/
+junit.xml
+test-results/
 
-# Python / AI service
+# ── Python / AI service ───────────────────────────────────────────────────────
+# Virtual environments
 ai-service/venv/
+ai-service/.venv/
+ai-service/env/
+ai-service/ENV/
+
+# Compiled bytecode
 **/__pycache__/
 *.py[cod]
 *$py.class
-.pytest_cache/
+*.pyo
+
+# Package build artifacts
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# Type checker / linter caches
 .ruff_cache/
 .mypy_cache/
-*.egg-info/
-ai-service/models/
+.pytype/
 
-# Runtime uploads/artifacts
+# Python version pin (local machine-specific)
+.python-version
+
+# ── AI model weights & HuggingFace cache ─────────────────────────────────────
+# Model binaries are large (500 MB – 1.6 GB) and are downloaded automatically
+# from Hugging Face Hub on first startup. Never commit them.
+ai-service/models/
+ai-service/.cache/
+ai-service/hub/
+# HuggingFace weight file extensions (safetensors, PyTorch, TF, GGUF)
+*.safetensors
+*.bin
+# Exclude only if inside model directories — be specific to avoid
+# blocking legitimate .bin usage elsewhere if any
+ai-service/**/*.safetensors
+ai-service/**/*.bin
+ai-service/**/*.pt
+ai-service/**/*.ckpt
+ai-service/**/*.h5
+ai-service/**/*.pkl
+ai-service/**/*.gguf
+
+# ── Runtime uploads / generated files ────────────────────────────────────────
+# Uploaded files are stored as base64 in MongoDB — local disk copies
+# should never be committed (may contain PHI / patient data).
 backend/uploads/
 backend/public/uploads/
 frontend/public/uploads/
-*.pdf
+# NOTE: *.pdf is intentionally NOT ignored globally.
+# Generated invoice PDFs land in the directories above (already ignored).
+# Sample/documentation PDFs committed to the repo should be preserved.
 
-# OS / editor
-.DS_Store
+# ── Sensitive credentials & certificates ──────────────────────────────────────
+# Healthcare application — any private key or certificate must never be tracked.
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cert
+*.der
+serviceAccountKey.json
+google-services.json
+*-credentials.json
+*-secrets.json
+secrets/
+
+# ── Temporary files ───────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+# macOS
+**/.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
 Thumbs.db
-desktop.ini
-.idea/
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ── Editor & IDE ──────────────────────────────────────────────────────────────
+# VS Code — ignore personal settings and local debug/task configs;
+# allow .vscode/extensions.json so recommended extensions can be shared.
 .vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+!.vscode/extensions.json
+
+# JetBrains (WebStorm, PyCharm, IntelliJ)
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Vim / Neovim swap files
+*.swp
+*.swo
+*.swn
+.netrwhist
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+\#*\#
+.\#*
+
+# ── Miscellaneous ─────────────────────────────────────────────────────────────
+*.lock-wscript
+.cache/
+.parcel-cache/

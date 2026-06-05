@@ -309,7 +309,7 @@ export const getAnalyticsPatients = asyncHandler(async (req, res) => {
       { $sort: { _id: 1 } },
     ]),
     Patient.aggregate([
-      { $match: { isArchived: false, createdAt: { $gte: from, $lte: to } } },
+      { $match: { isArchived: false } },
       {
         $group: {
           _id: '$gender',
@@ -318,11 +318,11 @@ export const getAnalyticsPatients = asyncHandler(async (req, res) => {
       },
     ]),
     Patient.aggregate([
-      { $match: { isArchived: false, createdAt: { $gte: from, $lte: to } } },
+      { $match: { isArchived: false } },
       { $group: { _id: { $ifNull: ['$bloodGroup', ''] }, count: { $sum: 1 } } },
     ]),
     Patient.aggregate([
-      { $match: { isArchived: false, createdAt: { $gte: from, $lte: to } } },
+      { $match: { isArchived: false } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
     ]),
     Patient.countDocuments({ isArchived: false, createdAt: { $lt: from } }),

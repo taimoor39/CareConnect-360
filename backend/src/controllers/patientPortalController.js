@@ -131,6 +131,7 @@ export const getPatientDashboardStats = asyncHandler(async (req, res) => {
     Consultation.countDocuments({
       patientId: pid,
       'medicalReport.title': { $exists: true, $nin: [null, ''] },
+      'medicalReport.summary.status': 'Approved',
       ...patientVisibleConsultationClause(completedApptIds),
     }),
     Appointment.findOne({ patientId: pid, date: { $gte: today }, status: 'Scheduled' })
@@ -213,7 +214,7 @@ export const listPatientAppointments = asyncHandler(async (req, res) => {
         patientId: patient._id,
         ...patientVisibleConsultationClause(completedApptIds),
       })
-        .select('appointmentId symptoms diagnosis consultationNotes followUpDate prescription medicalReport updatedAt')
+        .select('appointmentId followUpDate prescription medicalReport updatedAt')
         .lean()
     : [];
   const byAppt = new Map(consultations.map((c) => [String(c.appointmentId), c]));
@@ -223,9 +224,6 @@ export const listPatientAppointments = asyncHandler(async (req, res) => {
       ...r,
       consultation: c
         ? {
-            symptoms: c.symptoms || '',
-            diagnosis: c.diagnosis || '',
-            consultationNotes: c.consultationNotes || '',
             followUpDate: c.followUpDate || null,
             updatedAt: c.updatedAt,
             prescription: c.prescription?.items?.length ? c.prescription : null,
@@ -303,6 +301,7 @@ export const listPatientReports = asyncHandler(async (req, res) => {
   const reportFilter = {
     patientId: patient._id,
     'medicalReport.title': { $exists: true, $nin: [null, ''] },
+    'medicalReport.summary.status': 'Approved',
     ...patientVisibleConsultationClause(completedApptIds),
   };
 
