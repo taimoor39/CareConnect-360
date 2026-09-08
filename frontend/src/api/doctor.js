@@ -34,41 +34,11 @@ export const upsertAppointmentConsultation = (appointmentId, data, reportFile = 
   return axiosInstance.put(`/doctor/appointments/${appointmentId}/consultation`, data);
 };
 
-export const createConsultation = (data) =>
-  axiosInstance.post('/doctor/consultations', data);
-
-export const updateConsultation = (id, data) =>
-  axiosInstance.put(`/doctor/consultations/${id}`, data);
-
 export const getDoctorPrescriptions = (params = {}) =>
   axiosInstance.get('/doctor/prescriptions', { params });
 
-export const saveConsultationPrescription = (data) =>
-  axiosInstance.post('/doctor/prescriptions', data);
-
-/** @deprecated use upsertAppointmentConsultation */
-export const createPrescription = saveConsultationPrescription;
-
 export const getDoctorReports = (params = {}) =>
   axiosInstance.get('/doctor/reports', { params });
-
-export const uploadConsultationMedicalReportPDF = (appointmentId, formData) =>
-  axiosInstance.post(`/doctor/appointments/${appointmentId}/consultation/medical-report`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-
-export const uploadConsultationMedicalReport = (appointmentId, data) =>
-  axiosInstance.post(`/doctor/appointments/${appointmentId}/consultation/medical-report`, data);
-
-/** @deprecated use uploadConsultationMedicalReport* */
-export const uploadReport = (data) =>
-  axiosInstance.post('/doctor/reports', data);
-
-/** @deprecated use uploadConsultationMedicalReportPDF */
-export const uploadReportPDF = (formData) =>
-  axiosInstance.post('/doctor/reports', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
 
 /** Long-running: backend calls AI service (model load + BART on CPU). */
 const AI_SUMMARY_TIMEOUT_MS = 300_000;
@@ -88,15 +58,6 @@ export const regenerateAISummary = (consultationId) =>
 export const approveAISummary = (consultationId, data) =>
   axiosInstance.put(`/doctor/consultations/${consultationId}/medical-report/approve-summary`, data);
 
-export const rejectAISummary = (consultationId) =>
-  axiosInstance.put(`/doctor/consultations/${consultationId}/medical-report/reject-summary`);
-
-/**
- * Replace an existing report's file or text content.
- * Pass `file` (File object) to upload a new PDF, or include `originalText` in
- * `data` to replace with text. Title-only changes (no file / no originalText)
- * preserve the existing summary.
- */
 /** Permanently delete the medical report (and AI summary) from a consultation */
 export const deleteConsultationReport = (consultationId) =>
   axiosInstance.delete(`/doctor/reports/${consultationId}`);

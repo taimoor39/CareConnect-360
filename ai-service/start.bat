@@ -1,4 +1,5 @@
 @echo off
 echo Starting CareConnect 360 AI Service...
-cd /d "%~dp0"
-venv\Scripts\python.exe launch.py
+cd /d "%~dp0\.."
+node scripts\dev-ai.mjs
+

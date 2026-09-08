@@ -3,9 +3,6 @@ import { todayPKT } from '../utils/isoDate.js';
 
 export const getReceptionistStats = () => axiosInstance.get('/receptionist/dashboard-stats');
 
-/** @deprecated use getReceptionistStats */
-export const getReceptionistDashboardStats = getReceptionistStats;
-
 export const getTodayQueue = (params = {}) =>
   axiosInstance.get('/appointments', {
     params: {

@@ -1,62 +1,70 @@
 import { useEffect, useMemo } from 'react';
-import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone';
-import utc from 'dayjs/plugin/utc';
 
 import {
   currentYearInPakistan,
   formatDateInPakistan,
   parseLocalDateFromISO,
+  todayISOInPakistan,
 } from '../../utils/isoDate.js';
 import DateDropdown from '../ui/DateDropdown.jsx';
 import PatientSearchDropdown from './PatientSearchDropdown.jsx';
 import TimeSlotPicker from './TimeSlotPicker.jsx';
 
 const dayShortMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-dayjs.extend(utc);
-dayjs.extend(timezone);
+
+const toMins = (hhmm) => {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+  return h * 60 + m;
+};
+
+const pushSlot = (slots, t, duration) => {
+  const hh1 = String(Math.floor(t / 60)).padStart(2, '0');
+  const mm1 = String(t % 60).padStart(2, '0');
+  const t2 = (t + duration) % (24 * 60);
+  const hh2 = String(Math.floor(t2 / 60)).padStart(2, '0');
+  const mm2 = String(t2 % 60).padStart(2, '0');
+  slots.push({ full: `${hh1}:${mm1}-${hh2}:${mm2}`, start: `${hh1}:${mm1}` });
+};
 
 const generateSlots = (schedule) => {
-  const duration = Number(schedule?.consultationDurationMins || 30);
-  if (!schedule?.shiftStart || !schedule?.shiftEnd || schedule.shiftStart === schedule.shiftEnd) {
-    const fullDaySlots = [];
-    for (let t = 0; t < 24 * 60; t += duration) {
-      const hh1 = String(Math.floor(t / 60)).padStart(2, '0');
-      const mm1 = String(t % 60).padStart(2, '0');
-      const t2 = (t + duration) % (24 * 60);
-      const hh2 = String(Math.floor(t2 / 60)).padStart(2, '0');
-      const mm2 = String(t2 % 60).padStart(2, '0');
-      fullDaySlots.push({ full: `${hh1}:${mm1}-${hh2}:${mm2}`, start: `${hh1}:${mm1}` });
-    }
-    return fullDaySlots;
-  }
-  const [sH, sM] = schedule.shiftStart.split(':').map(Number);
-  const [eH, eM] = schedule.shiftEnd.split(':').map(Number);
-  const start = sH * 60 + sM;
-  const end = eH * 60 + eM;
+  const duration = Math.max(10, Number(schedule?.consultationDurationMins || 30));
   const slots = [];
-  const pushSlot = (t) => {
-    const hh1 = String(Math.floor(t / 60)).padStart(2, '0');
-    const mm1 = String(t % 60).padStart(2, '0');
-    const t2 = (t + duration) % (24 * 60);
-    const hh2 = String(Math.floor(t2 / 60)).padStart(2, '0');
-    const mm2 = String(t2 % 60).padStart(2, '0');
-    slots.push({ full: `${hh1}:${mm1}-${hh2}:${mm2}`, start: `${hh1}:${mm1}` });
-  };
+  if (!schedule?.shiftStart || !schedule?.shiftEnd || schedule.shiftStart === schedule.shiftEnd) {
+    for (let t = 0; t < 24 * 60; t += duration) {
+      pushSlot(slots, t, duration);
+    }
+    return slots;
+  }
+  const start = toMins(schedule.shiftStart);
+  const end = toMins(schedule.shiftEnd);
+  if (Number.isNaN(start) || Number.isNaN(end)) return slots;
 
+  // Match backend availability: include every slot that *starts* before shift end.
   if (start < end) {
-    for (let t = start; t + duration <= end; t += duration) {
-      pushSlot(t);
+    for (let t = start; t < end; t += duration) {
+      pushSlot(slots, t, duration);
     }
   } else {
     for (let t = start; t < 24 * 60; t += duration) {
-      pushSlot(t);
+      pushSlot(slots, t, duration);
     }
-    for (let t = 0; t + duration <= end; t += duration) {
-      pushSlot(t);
+    for (let t = 0; t < end; t += duration) {
+      pushSlot(slots, t, duration);
     }
   }
   return slots;
+};
+
+const pakistanNowParts = () => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Karachi',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date());
+  const get = (type) => Number(parts.find((p) => p.type === type)?.value || 0);
+  return { hour: get('hour'), minute: get('minute') };
 };
 
 function BookAppointmentModal({
@@ -78,32 +86,58 @@ function BookAppointmentModal({
   onFetchAvailability,
 }) {
   const selectedDoctor = useMemo(
-    () => activeDoctors.find((doctor) => doctor._id === bookForm.selectedDoctor?._id) || null,
+    () =>
+      activeDoctors.find((doctor) => String(doctor._id) === String(bookForm.selectedDoctor?._id || ''))
+      || bookForm.selectedDoctor
+      || null,
     [activeDoctors, bookForm.selectedDoctor]
   );
-  const allSlots = useMemo(() => generateSlots(selectedDoctor?.profile?.schedule), [selectedDoctor]);
+  const schedule = selectedDoctor?.profile?.schedule;
+  const allSlots = useMemo(() => (schedule ? generateSlots(schedule) : []), [schedule]);
   const selectedDateObj = useMemo(
     () => parseLocalDateFromISO(bookForm.selectedDate),
     [bookForm.selectedDate]
   );
   const filteredSlots = useMemo(() => {
-    if (!bookForm.selectedDate) return allSlots;
-    const nowPKT = dayjs().tz('Asia/Karachi');
-    const selectedPKT = dayjs.tz(bookForm.selectedDate, 'YYYY-MM-DD', 'Asia/Karachi');
-    if (!selectedPKT.isValid()) return allSlots;
-    if (!selectedPKT.isSame(nowPKT, 'day')) return allSlots;
+    let slots = allSlots;
+    if (bookForm.selectedDate === todayISOInPakistan()) {
+      const now = pakistanNowParts();
+      const thresholdMins = now.hour * 60 + now.minute + 30;
+      slots = slots.filter((slot) => {
+        const slotMins = toMins(slot.start);
+        return !Number.isNaN(slotMins) && slotMins >= thresholdMins;
+      });
+    }
 
-    const threshold = nowPKT.add(30, 'minute');
-    return allSlots.filter((slot) => {
-      const slotDateTime = dayjs.tz(`${bookForm.selectedDate} ${slot.start}`, 'YYYY-MM-DD HH:mm', 'Asia/Karachi');
-      return slotDateTime.isAfter(threshold) || slotDateTime.isSame(threshold);
-    });
-  }, [allSlots, bookForm.selectedDate]);
+    const duration = Math.max(10, Number(schedule?.consultationDurationMins || 30));
+    const byStart = new Map(slots.map((slot) => [slot.start, slot]));
+    const today = bookForm.selectedDate === todayISOInPakistan();
+    const now = today ? pakistanNowParts() : null;
+    const thresholdMins = now ? now.hour * 60 + now.minute + 30 : 0;
+
+    for (const raw of availableSlots || []) {
+      const start = String(raw?.start || raw?.full || raw || '').split('-')[0].trim().slice(0, 5);
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(start) || byStart.has(start)) continue;
+      const mins = toMins(start);
+      if (today && mins < thresholdMins) continue;
+      const extra = [];
+      pushSlot(extra, mins, duration);
+      if (extra[0]) byStart.set(start, extra[0]);
+    }
+
+    return Array.from(byStart.values()).sort((a, b) => a.start.localeCompare(b.start));
+  }, [allSlots, availableSlots, bookForm.selectedDate, schedule]);
   const selectedDayShort = selectedDateObj ? dayShortMap[selectedDateObj.getDay()] : '';
+  const doctorOffDay = Boolean(
+    schedule?.days?.length > 0 && selectedDayShort && !schedule.days.includes(selectedDayShort)
+  );
+  const canSubmit = Boolean(
+    bookForm.selectedPatient && bookForm.selectedDoctor && bookForm.selectedDate && bookForm.selectedSlot && !saving
+  );
 
   useEffect(() => {
     if (bookForm.selectedDoctor && selectedDateObj) {
-      onFetchAvailability(bookForm.selectedDoctor._id, bookForm.selectedDate);
+      onFetchAvailability(String(bookForm.selectedDoctor._id), bookForm.selectedDate);
     }
   }, [bookForm.selectedDoctor, bookForm.selectedDate, selectedDateObj, onFetchAvailability]);
 
@@ -157,9 +191,9 @@ function BookAppointmentModal({
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3.5">
             <p className="text-[11px] font-medium tracking-[0.08em] text-slate-300">DOCTOR</p>
             <select
-              value={bookForm.selectedDoctor?._id || ''}
+              value={bookForm.selectedDoctor?._id ? String(bookForm.selectedDoctor._id) : ''}
               onChange={(event) => {
-                const doctor = activeDoctors.find((item) => item._id === event.target.value) || null;
+                const doctor = activeDoctors.find((item) => String(item._id) === String(event.target.value)) || null;
                 setBookForm((prev) => ({ ...prev, selectedDoctor: doctor, selectedSlot: '' }));
               }}
               className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2.5 text-xs text-slate-100 outline-none transition focus:border-teal-300/70 focus:ring-2 focus:ring-teal-400/20"
@@ -175,55 +209,61 @@ function BookAppointmentModal({
             <DateDropdown
               value={bookForm.selectedDate}
               onChange={(iso) => setBookForm((prev) => ({ ...prev, selectedDate: iso, selectedSlot: '' }))}
-              minDate={dayjs().tz('Asia/Karachi').startOf('day').format('YYYY-MM-DD')}
+              minDate={todayISOInPakistan()}
               maxDate="2100-12-31"
               yearFrom={currentYearInPakistan()}
               yearTo={currentYearInPakistan() + 3}
               placeholder={['Day', 'Month', 'Year']}
               className="mt-2"
             />
-            {selectedDoctor?.profile?.schedule?.days?.length > 0 && selectedDayShort && !selectedDoctor.profile.schedule.days.includes(selectedDayShort) ? (
+            {doctorOffDay ? (
               <p className="mt-1 text-[11px] text-rose-300">Dr. {selectedDoctor.name} is not available on {selectedDayShort}</p>
             ) : null}
             {errors.date ? <p className="mt-1 text-[11px] text-rose-300">{errors.date}</p> : null}
             <p className="mt-3 text-[11px] font-medium tracking-[0.08em] text-slate-300">TIME SLOTS</p>
             <TimeSlotPicker
-              slots={filteredSlots}
+              slots={doctorOffDay ? [] : filteredSlots}
               availableStarts={availableSlots}
               loading={slotsLoading}
               selectedSlot={bookForm.selectedSlot}
               onSelect={(slot) => setBookForm((prev) => ({ ...prev, selectedSlot: slot }))}
+              doctorAndDateSelected={Boolean(bookForm.selectedDoctor && bookForm.selectedDate)}
+              doctorOffDay={doctorOffDay}
             />
             {errors.slot ? <p className="mt-1 text-[11px] text-rose-300">{errors.slot}</p> : null}
           </div>
         </div>
         <div className="mt-4 grid gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3.5">
           <textarea
-            value={bookForm.reasonForVisit}
+            value={bookForm.reasonForVisit || ''}
             onChange={(event) => setBookForm((prev) => ({ ...prev, reasonForVisit: event.target.value }))}
             placeholder="Reason for Visit (optional)"
             rows={2}
             className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100 outline-none transition focus:border-teal-300/70 focus:ring-2 focus:ring-teal-400/20"
           />
-          <p className="text-[11px] text-slate-500">{bookForm.reasonForVisit.length}/200</p>
+          <p className="text-[11px] text-slate-500">{String(bookForm.reasonForVisit || '').length}/200</p>
           <textarea
-            value={bookForm.notes}
+            value={bookForm.notes || ''}
             onChange={(event) => setBookForm((prev) => ({ ...prev, notes: event.target.value }))}
             placeholder="Notes (optional)"
             rows={3}
             className="w-full rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-100 outline-none transition focus:border-teal-300/70 focus:ring-2 focus:ring-teal-400/20"
           />
-          <p className="text-[11px] text-slate-500">{bookForm.notes.length}/500</p>
+          <p className="text-[11px] text-slate-500">{String(bookForm.notes || '').length}/500</p>
         </div>
         </div>
         <footer className="care-modal-footer care-modal-footer--between">
-          <p className="text-xs text-[var(--text-muted)]">Step 3 of 3</p>
+          <p className="max-w-xs text-xs text-[var(--text-muted)]">
+            {canSubmit
+              ? 'Reason for visit and notes are optional.'
+              : 'Select a patient, doctor, date, and time slot to book. Reason and notes are optional.'}
+          </p>
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
             <button
               type="button"
               onClick={onSubmit}
-              disabled={!bookForm.selectedPatient || !bookForm.selectedDoctor || !bookForm.selectedDate || !bookForm.selectedSlot || saving}
+              disabled={saving}
               className="h-9 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50"
             >
               {saving ? 'Booking…' : 'Book appointment →'}

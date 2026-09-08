@@ -529,6 +529,3 @@ export const startCronJobs = (schedules = {}) => {
   console.log('[CRON] All jobs scheduled');
 };
 
-export const registerAppointmentJobs = (schedules = {}) => {
-  startCronJobs(schedules);
-};

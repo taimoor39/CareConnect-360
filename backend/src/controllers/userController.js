@@ -170,7 +170,7 @@ export const updateUser = asyncHandler(async (req, res) => {
   if (req.body.name || req.body.firstName || req.body.lastName) user.name = buildFullName(req.body);
   if (req.body.phone) user.phone = req.body.phone;
   if (req.body.role) user.role = req.body.role;
-  if (req.body.password) user.password = req.body.password;
+  if (req.body.password) user.applyPasswordChange(req.body.password, { requireChange: false });
 
   const effectiveRole = req.body.role || user.role;
   if (typeof req.body.specialization !== 'undefined') {
@@ -315,11 +315,9 @@ export const sendResetEmailToUser = asyncHandler(async (req, res) => {
 export const setTemporaryPassword = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select('+password');
   if (!user) throw AppError.notFound('User not found');
+  if (!user.isActive) throw AppError.badRequest('User account is inactive');
 
-  user.password = req.body.temporaryPassword;
-  user.requirePasswordChange = true;
-  user.passwordResetToken = '';
-  user.passwordResetExpiry = null;
+  user.applyPasswordChange(req.body.temporaryPassword, { requireChange: true });
   await user.save();
 
   await auditLogger({

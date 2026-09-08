@@ -474,13 +474,31 @@ export const getDoctorAvailability = asyncHandler(async (req, res) => {
       .filter((v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v)),
   );
 
+  const todayIso = toPakistanISODate(new Date());
+  let openSlots = slots.filter((s) => !booked.has(s));
+  if (requestedIso === todayIso) {
+    const nowParts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date());
+    const hour = Number(nowParts.find((p) => p.type === 'hour')?.value || 0);
+    const minute = Number(nowParts.find((p) => p.type === 'minute')?.value || 0);
+    const threshold = hour * 60 + minute + 30;
+    openSlots = openSlots.filter((s) => {
+      const [h, m] = s.split(':').map(Number);
+      return h * 60 + m >= threshold;
+    });
+  }
+
   res.json({
     success: true,
     data: {
       date,
       day: dayShort,
       shift: `${to12Hour(profile.schedule.shiftStart)} - ${to12Hour(profile.schedule.shiftEnd)}`,
-      availableSlots: slots.filter((s) => !booked.has(s)),
+      availableSlots: openSlots,
     },
   });
 });

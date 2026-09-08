@@ -65,11 +65,14 @@ def truncate_to_token_limit(text: str, max_tokens: int = BART_SAFE_INPUT_TOKENS)
 
 
 def clamp_word_window(text: str, max_words: int = MAX_INPUT_WORDS) -> str:
+  """Keep the start (HPI) and the end (labs/assessment) of long reports."""
   words = text.split()
   if len(words) <= max_words:
     return text
-  logger.info("Truncating input from %s to %s words (SRS clinical window)", len(words), max_words)
-  return " ".join(words[:max_words])
+  logger.info("Truncating input from %s to %s words (head+tail clinical window)", len(words), max_words)
+  head = max(1, int(max_words * 0.65))
+  tail = max(1, max_words - head)
+  return " ".join(words[:head] + words[-tail:])
 
 
 def validate_and_prepare_input(text: str) -> tuple[str, int, int]:
@@ -103,7 +106,8 @@ def prepare_text_for_bart(
 ) -> str:
   """
   Clean and truncate input for BART (1024 hard limit).
-  Truncates at sentence boundary when possible.
+  Long reports keep the opening (HPI) and the closing (labs/assessment)
+  so unique findings at the end are not dropped.
   """
   text = re.sub(r"\n{3,}", "\n\n", text or "")
   text = re.sub(r" {2,}", " ", text).strip()
@@ -117,17 +121,7 @@ def prepare_text_for_bart(
   if len(tokens) <= max_safe_tokens:
     return text
 
-  logger.info("Text has %s tokens, truncating to %s", len(tokens), max_safe_tokens)
-  truncated_tokens = tokens[:max_safe_tokens]
-  truncated_text = tokenizer.decode(truncated_tokens, skip_special_tokens=True)
-
-  last_period = max(
-    truncated_text.rfind(". "),
-    truncated_text.rfind(".\n"),
-    truncated_text.rfind("! "),
-    truncated_text.rfind("? "),
-  )
-  if last_period > len(truncated_text) * 0.5:
-    truncated_text = truncated_text[: last_period + 1]
-
-  return truncated_text.strip()
+  logger.info("Text has %s tokens, truncating to %s (head+tail)", len(tokens), max_safe_tokens)
+  head = max(1, int(max_safe_tokens * 0.65))
+  tail = max(1, max_safe_tokens - head)
+  return tokenizer.decode(tokens[:head] + tokens[-tail:], skip_special_tokens=True).strip()

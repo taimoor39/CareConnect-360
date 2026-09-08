@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 EXTRA_MEDICAL_TERMS_CAP = 5000
 

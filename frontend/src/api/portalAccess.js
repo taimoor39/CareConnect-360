@@ -21,7 +21,4 @@ export const updatePortalRequestEmail = (id, data) =>
 export const reopenPortalAccess = (id) =>
   axiosInstance.put(`/portal-access/${id}/reopen`);
 
-export const getPatientPortalStatus = (patientId) =>
-  axiosInstance.get(`/portal-access/patient/${patientId}`);
-
 export const requestPortalAccess = createPortalAccessRequest;

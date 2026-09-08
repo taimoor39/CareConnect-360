@@ -5,9 +5,6 @@
  * - performAppointmentCheckIn: validates same-day + Scheduled, notifies admins + doctor email.
  * - applyRoleScope: narrows queries for doctor vs patient JWT contexts.
  */
-import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone.js';
-import utc from 'dayjs/plugin/utc.js';
 
 import Appointment from '../models/Appointment.js';
 import DoctorProfile from '../models/DoctorProfile.js';
@@ -19,9 +16,6 @@ import { auditFromReq } from '../utils/audit.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { findPatientByUserId } from '../utils/patientLink.js';
 import { pktDayBounds } from '../utils/timezone.js';
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
 
 export const startEndOfDate = (dateInput) => {
   const bounds = dayBoundsInPakistan(dateInput);

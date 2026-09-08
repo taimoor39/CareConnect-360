@@ -116,10 +116,10 @@ const applyConsultationFields = (consultation, body) => {
     const existing = consultation.medicalReport?.toObject?.() || consultation.medicalReport || {};
     const incoming = body.medicalReport;
     const fileType = incoming.fileType === 'pdf' || existing.fileType === 'pdf' ? 'pdf' : 'text';
-    const originalText =
-      fileType === 'pdf'
-        ? String(existing.originalText || '')
-        : String(incoming.originalText || existing.originalText || '').trim();
+    const incomingText = fileType === 'pdf' ? '' : String(incoming.originalText || '').trim();
+    const existingText = String(existing.originalText || '').trim();
+    const originalText = fileType === 'pdf' ? existingText : (incomingText || existingText);
+    const textChanged = fileType !== 'pdf' && Boolean(incomingText) && incomingText !== existingText;
 
     consultation.set('medicalReport', {
       title: String(incoming.title || existing.title || '').trim(),
@@ -130,10 +130,11 @@ const applyConsultationFields = (consultation, body) => {
       pdfSizeBytes: incoming.pdfSizeBytes || existing.pdfSizeBytes || 0,
       pdfBase64: incoming.pdfBase64 || existing.pdfBase64 || '',
       uploadedAt: existing.uploadedAt || new Date(),
-      summary:
-        existing.summary?.status && existing.summary.status !== 'Not Generated'
+      summary: textChanged
+        ? { status: 'Not Generated' }
+        : (existing.summary?.status && existing.summary.status !== 'Not Generated'
           ? existing.summary
-          : { status: 'Not Generated' },
+          : { status: 'Not Generated' }),
     });
     consultation.markModified('medicalReport');
   }
@@ -742,9 +743,6 @@ export const regenerateConsultationSummary = asyncHandler(async (req, res) => {
   }
 });
 
-export const summarizeDoctorReport = summarizeConsultationReport;
-export const regenerateDoctorSummary = regenerateConsultationSummary;
-
 export const approveConsultationSummary = asyncHandler(async (req, res) => {
   const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
   if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
@@ -780,8 +778,6 @@ export const approveConsultationSummary = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Summary approved and visible to patient', data: summary });
 });
 
-export const approveDoctorSummary = approveConsultationSummary;
-
 export const rejectConsultationSummary = asyncHandler(async (req, res) => {
   const consultation = await Consultation.findOne({ _id: req.params.id, doctorId: req.user._id });
   if (!consultation?.medicalReport?.title) throw AppError.notFound('Report not found');
@@ -796,8 +792,6 @@ export const rejectConsultationSummary = asyncHandler(async (req, res) => {
 
   res.json({ success: true, message: 'Summary rejected', data: consultation.medicalReport.summary });
 });
-
-export const rejectDoctorSummary = rejectConsultationSummary;
 
 export const getDoctorProfile = asyncHandler(async (req, res) => {
   const userId = req.user._id;

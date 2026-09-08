@@ -8,8 +8,6 @@ const normalizedBase = apiBase.replace(/\/$/, '');
 /** No auth interceptors — used for public registration. */
 const publicClient = axios.create({ baseURL: normalizedBase });
 
-export const getAuthMe = () => client.get('/auth/me');
-
 export const registerPatientAccount = (payload) => publicClient.post('/auth/register', payload);
 
 export async function verifyEmailApi(token) {
@@ -22,8 +20,6 @@ export async function verifyEmailApi(token) {
   }
   return { ok: res.ok, status: res.status, body };
 }
-
-export const resendVerificationEmail = () => client.post('/auth/resend-verification');
 
 export const forgotPassword = (email) => client.post('/auth/forgot-password', { email });
 

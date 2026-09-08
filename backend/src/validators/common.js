@@ -8,14 +8,6 @@ export const DAYS_OF_WEEK = Object.freeze(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'S
 export const GENDERS = Object.freeze(['Male', 'Female', 'Other']);
 export const BLOOD_GROUPS = Object.freeze(['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-']);
 export const PATIENT_STATUSES = Object.freeze(['Active', 'Inactive', 'Discharged']);
-export const APPOINTMENT_STATUSES = Object.freeze([
-  'Scheduled',
-  'Checked-In',
-  'In-Progress',
-  'Completed',
-  'Missed',
-  'Cancelled',
-]);
 export const APPOINTMENT_STATUS_UPDATES = Object.freeze([
   'Checked-In',
   'In-Progress',

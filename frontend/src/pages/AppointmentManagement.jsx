@@ -200,9 +200,10 @@ function AppointmentManagement() {
   }, [patientSearch]);
 
   const fetchAvailability = useCallback(async (doctorId, date) => {
+    if (!doctorId || !date) return;
     try {
       setSlotsLoading(true);
-      const response = await getDoctorAvailability(doctorId, date);
+      const response = await getDoctorAvailability(String(doctorId), date);
       setAvailableSlots(response.data?.data?.availableSlots || []);
     } catch (error) {
       setAvailableSlots([]);
@@ -354,6 +355,17 @@ function AppointmentManagement() {
           activeDoctors={activeDoctors}
           onOpenBook={() => {
             setTargetForReschedule(null);
+            setBookForm({
+              selectedPatient: null,
+              selectedDoctor: null,
+              selectedDate: todayISOInPakistan(),
+              selectedSlot: '',
+              reasonForVisit: '',
+              notes: '',
+            });
+            setBookErrors({});
+            setPatientSearch('');
+            setAvailableSlots([]);
             setBookModalOpen(true);
           }}
         />

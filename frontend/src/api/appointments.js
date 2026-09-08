@@ -10,14 +10,6 @@ export const createAppointment = (data) => axiosInstance.post('/appointments', d
 
 export const updateAppointmentStatus = (id, data) => axiosInstance.put(`/appointments/${id}/status`, data);
 
-export const checkInAppointment = (qrCode) => axiosInstance.put('/appointments/checkin', { qrCode });
-
-export const getPatientAppointments = (patientId, params = {}) =>
-  axiosInstance.get(`/appointments/patient/${patientId}`, { params });
-
-export const getDoctorAppointments = (doctorId, params = {}) =>
-  axiosInstance.get(`/appointments/doctor/${doctorId}`, { params });
-
 export const getDoctorAvailability = (doctorId, date) =>
   axiosInstance.get(`/doctors/${doctorId}/availability`, { params: { date } });
 

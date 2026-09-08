@@ -6,7 +6,24 @@ const toTime12 = (hhmm) => {
   return `${String(hour).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
 };
 
-function TimeSlotPicker({ slots = [], availableStarts = [], loading, selectedSlot, onSelect }) {
+const toStart = (value) => {
+  if (value && typeof value === 'object') {
+    return toStart(value.start || value.full || value.timeSlot || '');
+  }
+  return String(value || '').split('-')[0].trim().slice(0, 5);
+};
+
+function TimeSlotPicker({
+  slots = [],
+  availableStarts = [],
+  loading,
+  selectedSlot,
+  onSelect,
+  doctorAndDateSelected = false,
+  doctorOffDay = false,
+}) {
+  const availableSet = new Set((availableStarts || []).map(toStart).filter((v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v)));
+
   if (loading) {
     return (
       <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -17,36 +34,57 @@ function TimeSlotPicker({ slots = [], availableStarts = [], loading, selectedSlo
     );
   }
 
-  if (slots.length === 0) {
+  if (!doctorAndDateSelected) {
     return (
       <p className="mt-2 text-[11px] text-slate-500">Select a doctor and date to see time slots.</p>
     );
   }
 
+  if (doctorOffDay) {
+    return (
+      <p className="mt-2 text-[11px] text-slate-500">This doctor does not work on the selected day.</p>
+    );
+  }
+
+  if (slots.length === 0) {
+    return (
+      <p className="mt-2 text-[11px] text-amber-200">No remaining time slots for this date. Try another day.</p>
+    );
+  }
+
+  const openCount = slots.filter((slot) => availableSet.has(slot.start)).length;
+
   return (
-    <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-      {slots.map((slot) => {
-        const available = availableStarts.includes(slot.start);
-        const selected = selectedSlot === slot.full;
-        return (
-          <button
-            key={slot.full}
-            type="button"
-            disabled={!available}
-            onClick={() => available && onSelect(slot.full)}
-            className={[
-              'rounded-lg px-2 py-1.5 text-[11px] font-medium transition',
-              selected
-                ? 'bg-teal-500 text-slate-900 ring-2 ring-teal-300'
-                : available
-                  ? 'border border-teal-300/30 bg-teal-400/10 text-teal-100 hover:bg-teal-400/20'
-                  : 'cursor-not-allowed border border-slate-700/50 bg-slate-900/30 text-slate-600 line-through',
-            ].join(' ')}
-          >
-            {toTime12(slot.start)}
-          </button>
-        );
-      })}
+    <div>
+      {openCount === 0 ? (
+        <p className="mb-2 text-[11px] text-amber-200">All listed slots are booked or already passed. Reason for visit and notes are optional — pick an open time slot to book.</p>
+      ) : (
+        <p className="mb-2 text-[11px] text-slate-500">Select a time slot to enable booking. Reason for visit and notes are optional.</p>
+      )}
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {slots.map((slot) => {
+          const available = availableSet.has(slot.start);
+          const selected = selectedSlot === slot.full;
+          return (
+            <button
+              key={slot.full}
+              type="button"
+              disabled={!available}
+              onClick={() => available && onSelect(slot.full)}
+              className={[
+                'rounded-lg px-2 py-1.5 text-[11px] font-medium transition',
+                selected
+                  ? 'bg-teal-500 text-slate-900 ring-2 ring-teal-300'
+                  : available
+                    ? 'border border-teal-300/30 bg-teal-400/10 text-teal-100 hover:bg-teal-400/20'
+                    : 'cursor-not-allowed border border-slate-700/50 bg-slate-900/30 text-slate-600 line-through',
+              ].join(' ')}
+            >
+              {toTime12(slot.start)}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

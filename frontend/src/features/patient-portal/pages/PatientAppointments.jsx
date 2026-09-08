@@ -133,7 +133,11 @@ function PatientAppointments() {
               <p className="text-xs text-[var(--text-muted)]">
                 Reason: {a.reasonForVisit?.trim() || 'General consultation'}
               </p>
-              {a.consultation ? (
+              {a.consultation && (
+                a.consultation.symptoms?.trim()
+                || a.consultation.diagnosis?.trim()
+                || a.consultation.consultationNotes?.trim()
+              ) ? (
                 <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.02)] p-4 text-sm">
                   <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-[var(--teal-light)]">
                     Visit notes (from your doctor)

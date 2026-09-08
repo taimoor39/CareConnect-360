@@ -77,12 +77,3 @@ export function EmptyStateIconCalendar() {
     </svg>
   );
 }
-
-export function EmptyStateIconUsers() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" width="40" height="40" aria-hidden="true">
-      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}

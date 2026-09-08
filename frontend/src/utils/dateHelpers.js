@@ -1,5 +1,4 @@
-import { parseLocalDateFromISO, toISOInputValue, todayISOInPakistan } from './isoDate.js';
-export const PKT_OFFSET = 5 * 60;
+import { parseLocalDateFromISO, toISOInputValue } from './isoDate.js';
 
 const parseDateForDisplay = (value) => {
   const strict = parseLocalDateFromISO(value);
@@ -72,8 +71,4 @@ export const toInputDate = (dateStr) => {
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '';
   return toISOInputValue(d);
-};
-
-export const todayPKT = () => {
-  return todayISOInPakistan();
 };

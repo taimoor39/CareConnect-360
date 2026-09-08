@@ -1,5 +1,4 @@
 """FastAPI application — mounts all AI routes and warms up the BART model at startup."""
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -7,8 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import root_router
 from app.core.config import ALLOW_ORIGINS
-
-logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager

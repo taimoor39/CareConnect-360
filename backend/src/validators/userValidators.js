@@ -1,4 +1,4 @@
-import { body, query } from 'express-validator';
+import { query } from 'express-validator';
 
 import {
   ROLES,
@@ -44,15 +44,7 @@ export const userIdValidator = [mongoIdParam(USER_ID.field, USER_ID.label)];
 
 export const setTempPasswordValidator = [
   mongoIdParam(USER_ID.field, USER_ID.label),
-  body('temporaryPassword')
-    .notEmpty()
-    .withMessage('Temporary password is required')
-    .isLength({ min: 8 })
-    .withMessage('Minimum 8 characters')
-    .matches(/[A-Z]/)
-    .withMessage('Must include uppercase letter')
-    .matches(/[0-9]/)
-    .withMessage('Must include a number'),
+  passwordRule('temporaryPassword'),
 ];
 
 export const listUsersQueryValidator = [

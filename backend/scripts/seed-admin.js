@@ -1,8 +1,9 @@
 /**
  * Idempotent admin bootstrap from src/seeders/admin.defaults.json.
- * Run from backend workspace (cwd loads backend/.env): npm run seed:admin
+ * Creates the default admin only when no admin user exists.
+ * Run: npm run seed:admin  (root or backend workspace)
  */
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,10 @@ import User from '../src/models/User.js';
 import { seedAdminFromDefaults } from '../src/seeders/index.js';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const defaultsPath = path.join(scriptDir, '..', 'src', 'seeders', 'admin.defaults.json');
+const backendRoot = path.join(scriptDir, '..');
+dotenv.config({ path: path.join(backendRoot, '.env') });
+
+const defaultsPath = path.join(backendRoot, 'src', 'seeders', 'admin.defaults.json');
 
 async function verifyLogin(email, plainPassword) {
   const user = await User.findOne({ email }).select('+password').exec();
@@ -31,7 +35,13 @@ async function main() {
     const password = String(defaults.password || '');
 
     const results = await seedAdminFromDefaults();
+    const result = results[0] || {};
     console.log('Seed results:', JSON.stringify(results, null, 2));
+
+    if (result.status !== 'created') {
+      console.log('Admin seed skipped:', result.reason || 'already present');
+      return;
+    }
 
     const login = await verifyLogin(email, password);
     if (!login.ok) {

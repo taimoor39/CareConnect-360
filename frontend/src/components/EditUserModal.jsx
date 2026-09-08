@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 
 import CareModal from '@/shared/components/CareModal.jsx';
@@ -7,6 +7,12 @@ import { PasswordInput } from '@/shared/components/PasswordField.jsx';
 const roles = ['admin', 'doctor', 'receptionist', 'patient'];
 
 const inputClass = 'h-9 w-full rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-xs text-slate-100 outline-none transition focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20';
+const strongPasswordRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/;
+
+const apiErrorMessage = (error, fallback) =>
+  error.response?.data?.errors?.[0]?.message
+  || error.response?.data?.message
+  || fallback;
 
 function EditUserModal({
   open,
@@ -22,7 +28,18 @@ function EditUserModal({
   const [sendingReset, setSendingReset] = useState(false);
   const [tempOpen, setTempOpen] = useState(false);
   const [tempPw, setTempPw] = useState('');
+  const [tempError, setTempError] = useState('');
   const [settingTemp, setSettingTemp] = useState(false);
+
+  useEffect(() => {
+    if (open) return undefined;
+    setTempOpen(false);
+    setTempPw('');
+    setTempError('');
+    setSendingReset(false);
+    setSettingTemp(false);
+    return undefined;
+  }, [open]);
 
   const sendReset = async () => {
     if (!onSendResetEmail) return;
@@ -30,21 +47,35 @@ function EditUserModal({
     try {
       await onSendResetEmail();
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to send reset email');
+      toast.error(apiErrorMessage(error, 'Failed to send reset email'));
     } finally {
       setSendingReset(false);
     }
   };
 
-  const submitTemp = async () => {
-    if (!tempPw.trim() || !onSetTempPassword) return;
+  const submitTemp = async (event) => {
+    event?.preventDefault?.();
+    if (!onSetTempPassword) return;
+    const next = tempPw.trim();
+    if (!next) {
+      setTempError('Temporary password is required');
+      return;
+    }
+    if (!strongPasswordRegex.test(next)) {
+      setTempError('Password must be 8+ chars with uppercase, lowercase, and a number');
+      return;
+    }
+
     setSettingTemp(true);
+    setTempError('');
     try {
-      await onSetTempPassword(tempPw);
+      await onSetTempPassword(next);
       setTempOpen(false);
       setTempPw('');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to set password');
+      const message = apiErrorMessage(error, 'Failed to set password');
+      setTempError(message);
+      toast.error(message);
     } finally {
       setSettingTemp(false);
     }
@@ -105,6 +136,12 @@ function EditUserModal({
             ) : null}
           </div>
 
+          <div className="mt-4 flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
+            <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
+            <button type="submit" disabled={saving} className="h-9 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
+          </div>
+        </form>
+
           <div className="mt-6 border-t border-[var(--border)] pt-4">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">RESET USER PASSWORD</p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -118,55 +155,57 @@ function EditUserModal({
               </button>
               <button
                 type="button"
-                onClick={() => setTempOpen((o) => !o)}
+                onClick={() => {
+                  setTempError('');
+                  setTempOpen((o) => !o);
+                }}
                 className="rounded-lg border border-amber-500/50 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/10"
               >
                 Set Temporary Password
               </button>
             </div>
             {tempOpen ? (
-              <div className="mt-4 rounded-lg border border-slate-700 bg-slate-950/50 p-3">
+              <form className="mt-4 rounded-lg border border-slate-700 bg-slate-950/50 p-3" onSubmit={submitTemp}>
                 <label className="block text-[11px] text-slate-400">
                   New Password
                   <PasswordInput
                     autoComplete="new-password"
                     value={tempPw}
-                    onChange={(e) => setTempPw(e.target.value)}
+                    onChange={(e) => {
+                      setTempPw(e.target.value);
+                      if (tempError) setTempError('');
+                    }}
                     className="mt-1"
                     size="sm"
                     inputClassName={`${inputClass} focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20`}
                     placeholder="Temporary password"
                   />
                 </label>
+                {tempError ? <p className="mt-1 text-[11px] text-rose-300">{tempError}</p> : (
+                  <p className="mt-1 text-[11px] text-slate-500">8+ characters with uppercase, lowercase, and a number.</p>
+                )}
                 <div className="mt-3 flex gap-2">
                   <button
-                    type="button"
+                    type="submit"
                     disabled={settingTemp || !tempPw.trim()}
-                    onClick={submitTemp}
                     className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-100 disabled:opacity-50"
                   >
                     {settingTemp ? 'Setting…' : 'Set Password'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setTempOpen(false); setTempPw(''); }}
+                    onClick={() => { setTempOpen(false); setTempPw(''); setTempError(''); }}
                     className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-300"
                   >
                     Cancel
                   </button>
                 </div>
-              </div>
+              </form>
             ) : null}
             <p className="mt-3 text-xs text-slate-500">
               Prefer sending a reset email for security. Only use temporary password if email is unavailable.
             </p>
           </div>
-
-          <div className="mt-4 flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
-            <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-600 px-4 text-xs text-slate-200 transition hover:bg-slate-800">Cancel</button>
-            <button type="submit" disabled={saving} className="h-9 rounded-lg bg-teal-500 px-4 text-xs font-semibold text-slate-900 transition hover:bg-teal-400 disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
-          </div>
-        </form>
     </CareModal>
   );
 }

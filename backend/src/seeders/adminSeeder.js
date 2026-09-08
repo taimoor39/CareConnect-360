@@ -14,13 +14,24 @@ export const seedAdmin = async (options = {}) => {
     };
   }
 
-  const existingAdmin = await User.findOne({ email });
+  const existingAdmin = await User.findOne({ role: 'admin' });
 
   if (existingAdmin) {
     return {
       name: 'admin',
       status: 'skipped',
       reason: 'admin already exists',
+      email: existingAdmin.email,
+    };
+  }
+
+  const existingEmail = await User.findOne({ email });
+
+  if (existingEmail) {
+    return {
+      name: 'admin',
+      status: 'skipped',
+      reason: 'user with this email already exists',
       email,
     };
   }

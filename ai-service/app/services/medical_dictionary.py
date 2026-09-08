@@ -7,8 +7,6 @@ from __future__ import annotations
 import re
 from typing import Mapping
 
-_MAX_SUMMARY_WORDS_VS_INPUT_RATIO = 0.92
-
 # Collapse redundant parenthetical explanations produced when the medical dictionary
 # simplifies a term that BART already copied with its own parenthetical from the source
 # report, e.g.:
@@ -99,19 +97,3 @@ def apply_medical_dictionary(
 
   result = dedupe_parenthetical_phrases(result)
   return {"simplified_text": result, "replacements_made": replacements_made}
-
-
-def assert_summary_is_compressed(
-  original_word_count: int,
-  summary_word_count: int,
-) -> None:
-  if original_word_count < 40:
-    return
-  if summary_word_count >= original_word_count * _MAX_SUMMARY_WORDS_VS_INPUT_RATIO:
-    import logging
-
-    logging.getLogger(__name__).warning(
-      "Summary length (%s words) is close to input (%s words) — verify BART ran before dictionary",
-      summary_word_count,
-      original_word_count,
-    )

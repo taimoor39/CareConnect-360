@@ -367,18 +367,21 @@ function UserManagement() {
 
     try {
       setEditSaving(true);
+      const password = String(editForm.password || '').trim();
+      const email = String(editForm.email || '').trim().toLowerCase();
+      const originalEmail = String(editForm.originalEmail || '').trim().toLowerCase();
       await updateUser(editForm.id, {
         firstName: editForm.firstName,
         lastName: editForm.lastName,
         name: `${editForm.firstName} ${editForm.lastName}`.trim(),
-        email: editForm.email,
+        ...(email && email !== originalEmail ? { email } : {}),
         phone: editForm.phone,
-        password: editForm.password || undefined,
+        ...(password ? { password } : {}),
         role: editForm.role,
         specialization: editForm.specialization,
         qualification: editForm.qualification,
       });
-      toast.success('User updated successfully');
+      toast.success(password ? 'User updated. New password is ready to use.' : 'User updated successfully');
       setEditOpen(false);
       setEditForm(null);
       await load(appliedSearch);
@@ -396,6 +399,15 @@ function UserManagement() {
         toast.error('Access denied');
         return;
       }
+      if (error.response?.status === 400) {
+        const first = error.response?.data?.errors?.[0];
+        const message = first?.message || error.response?.data?.message || 'Could not update user';
+        if (first?.field) {
+          setEditErrors((prev) => ({ ...prev, [first.field]: message }));
+        }
+        toast.error(message);
+        return;
+      }
       toast.error('Server error, please try again');
     } finally {
       setEditSaving(false);
@@ -411,7 +423,7 @@ function UserManagement() {
 
   const handleSetTempPassword = async (temporaryPassword) => {
     if (!editForm?.id) return;
-    await setUserTempPassword(editForm.id, temporaryPassword);
+    await setUserTempPassword(editForm.id, String(temporaryPassword || '').trim());
     toast.success('Temporary password set. User must change it on next login.');
   };
 

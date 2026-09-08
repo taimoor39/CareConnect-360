@@ -1,7 +1,6 @@
 /**
  * Shared query helpers used across multiple controllers.
  */
-import { dayBoundsInPakistan, todayBoundsInPakistan } from './dateTime.js';
 
 // ─── Pagination ───────────────────────────────────────────────────────────
 export const parsePagination = (query, { defaultLimit = 10, maxLimit = 100 } = {}) => {
@@ -30,21 +29,6 @@ export const searchRegex = (input) => {
   const trimmed = String(input || '').trim();
   if (!trimmed) return null;
   return new RegExp(escapeRegex(trimmed), 'i');
-};
-
-// ─── Date helpers ─────────────────────────────────────────────────────────
-export const startEndOfDay = (dateInput) => {
-  if (dateInput) {
-    const bounds = dayBoundsInPakistan(dateInput);
-    if (bounds) return { start: bounds.start, end: bounds.end };
-  }
-  const today = todayBoundsInPakistan();
-  if (today) return { start: today.start, end: today.end };
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
 };
 
 // ─── Name helpers ─────────────────────────────────────────────────────────

@@ -119,4 +119,21 @@ userSchema.methods.comparePassword = function comparePassword(candidatePassword)
   return bcrypt.compare(candidatePassword, this.password);
 };
 
+/**
+ * Assign a new plaintext password so the pre-save hash hook always runs,
+ * bump tokenVersion to invalidate existing JWTs, and clear leftover reset tokens.
+ */
+userSchema.methods.applyPasswordChange = function applyPasswordChange(plain, { requireChange = false } = {}) {
+  const next = String(plain || '').trim();
+  if (!next) return this;
+
+  this.password = next;
+  this.markModified('password');
+  this.tokenVersion = Number(this.tokenVersion ?? 0) + 1;
+  this.passwordResetToken = '';
+  this.passwordResetExpiry = null;
+  this.requirePasswordChange = Boolean(requireChange);
+  return this;
+};
+
 export default mongoose.model('User', userSchema);

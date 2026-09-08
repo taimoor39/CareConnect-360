@@ -37,5 +37,3 @@ export const signToken = (user, { payload = {}, signOptions = {} } = {}) =>
 /** Verify and return the decoded payload. Throws on invalid/expired tokens. */
 export const verifyToken = (token) => jwt.verify(token, requireSecret());
 
-/** Decode a token without verifying (for diagnostics / non-auth contexts only). */
-export const decodeToken = (token) => jwt.decode(token);

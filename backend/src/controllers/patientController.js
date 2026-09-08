@@ -77,15 +77,18 @@ const buildPayload = (body, userId) => ({
 
 // ─── Linked-user management ──────────────────────────────────────────────
 
+const linkedUserIdOf = (patient) => patient?.user || patient?.userId || null;
+
 const ensureLinkedUser = async ({ patient, reqBody, shouldCreate }) => {
   const email = String(reqBody.email || '').trim().toLowerCase();
   const password = String(reqBody.password || '').trim();
-  const hasCredentials = email && password;
+  const hasCredentials = Boolean(email && password);
+  const existingLink = linkedUserIdOf(patient);
 
-  if (!hasCredentials && !patient?.user && !shouldCreate) return null;
+  if (!hasCredentials && !existingLink && !shouldCreate) return null;
 
   // Creating a brand-new linked user account
-  if (hasCredentials && !patient?.user && shouldCreate) {
+  if (hasCredentials && !existingLink && shouldCreate) {
     const existing = await User.findOne({ email }).lean();
     if (existing) throw AppError.conflict('A user already exists with this email');
 
@@ -101,21 +104,21 @@ const ensureLinkedUser = async ({ patient, reqBody, shouldCreate }) => {
   }
 
   // Updating an existing linked user account
-  if (patient?.user && hasCredentials) {
-    const dup = await User.findOne({ email, _id: { $ne: patient.user } }).lean();
+  if (existingLink && hasCredentials) {
+    const dup = await User.findOne({ email, _id: { $ne: existingLink } }).lean();
     if (dup) throw AppError.conflict('A user already exists with this email');
 
-    const linked = await User.findById(patient.user).select('+password');
+    const linked = await User.findById(existingLink).select('+password');
     if (linked) {
       linked.name = `${String(reqBody.firstName || patient.firstName || '').trim()} ${String(reqBody.lastName || patient.lastName || '').trim()}`.trim();
       linked.email = email;
       linked.phone = String(reqBody.phone || '').trim();
-      if (password) linked.password = password;
+      linked.applyPasswordChange(password, { requireChange: false });
       await linked.save();
     }
   }
 
-  return patient?.user || null;
+  return existingLink;
 };
 
 // ─── Public view ──────────────────────────────────────────────────────────

@@ -4,7 +4,11 @@ Medical report summarization — DistilBART on CPU.
 Design:
   - Model weights load once at startup in a daemon thread.
   - Summarize requests wait for the model (up to REQUEST_MODEL_WAIT_SEC).
-  - A hard per-request wall-clock cap prevents BART from blocking forever.
+  - Every request tokenizes its own report and runs generate() from scratch.
+    Prior encoder/decoder state is cleared so a new report never reprints the
+    previous summary.
+  - Generate is exclusive (lock) and time-capped via HF max_time on the same
+    thread — we never abandon a running decode on the shared weights.
   - If BART times out or fails, a fast extractive fallback is returned.
   - Inference always runs off the asyncio event loop so the HTTP server stays responsive.
 """
@@ -12,12 +16,14 @@ Design:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from functools import partial
 
 import pytz
 
@@ -56,6 +62,9 @@ _model_failed = False
 _model_error = ""
 _model_loading = False
 _load_lock = threading.Lock()
+# One generate at a time — BART is not thread-safe; overlapping decode on the
+# shared weights was returning the previous report's summary.
+_generation_lock = threading.Lock()
 
 # Single-thread pool for model loading — reused across restarts.
 _load_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bart-load")
@@ -140,8 +149,8 @@ def wait_for_model_ready(timeout_sec: float | None = None) -> bool:
 
 # ── BART inference ────────────────────────────────────────────────────────────
 
-def _generate_kwargs() -> dict:
-  return {
+def _generate_kwargs(*, diversify: bool = False) -> dict:
+  kwargs = {
     "max_new_tokens": BART_MAX_NEW_TOKENS,
     "min_length": BART_MIN_LENGTH,
     "num_beams": BART_NUM_BEAMS,
@@ -149,29 +158,84 @@ def _generate_kwargs() -> dict:
     "length_penalty": BART_LENGTH_PENALTY,
     "early_stopping": BART_EARLY_STOPPING,
     "do_sample": False,
+    "use_cache": True,
+    "output_scores": False,
+    "return_dict_in_generate": False,
+    # Stop cleanly on this thread so we never abandon generate() on the shared model.
+    "max_time": float(BART_INFERENCE_TIMEOUT_SEC),
   }
+  if diversify:
+    # Same report sent again (Reject & Regenerate) — beam search is deterministic
+    # and would otherwise reprint the previous summary word-for-word.
+    kwargs.update({
+      "do_sample": True,
+      "num_beams": 1,
+      "temperature": 0.9,
+      "top_p": 0.92,
+      "early_stopping": False,
+    })
+  return kwargs
 
 
-def _run_bart(model, tokenizer, text: str) -> str:
+def _clear_generation_residue(model) -> None:
+  """Drop leftover decoder cache so the next report is encoded from scratch."""
+  if hasattr(model, "_cache"):
+    model._cache = None
+  for attr in ("past_key_values", "_past_key_values"):
+    if hasattr(model, attr):
+      try:
+        setattr(model, attr, None)
+      except Exception:
+        pass
+
+
+def _run_bart(model, tokenizer, text: str, *, diversify: bool = False) -> str:
+  """Always tokenize + generate from the given text; never reuse prior encoder output."""
   import torch
 
-  enc = tokenizer(text, max_length=BART_SAFE_CHUNK_TOKENS, truncation=True, return_tensors="pt")
-  with torch.inference_mode():
-    ids = model.generate(enc["input_ids"], attention_mask=enc.get("attention_mask"), **_generate_kwargs())
+  enc = tokenizer(
+    text,
+    max_length=BART_SAFE_CHUNK_TOKENS,
+    truncation=True,
+    padding=False,
+    return_tensors="pt",
+  )
+  input_ids = enc["input_ids"].detach().clone()
+  attention_mask = enc.get("attention_mask")
+  if attention_mask is not None:
+    attention_mask = attention_mask.detach().clone()
+
+  if diversify:
+    torch.manual_seed(int(time.time_ns() % (2**31)))
+
+  _clear_generation_residue(model)
+  kwargs = _generate_kwargs(diversify=diversify)
+  try:
+    with torch.inference_mode():
+      ids = model.generate(input_ids, attention_mask=attention_mask, **kwargs)
+  except TypeError:
+    kwargs.pop("max_time", None)
+    kwargs.pop("return_dict_in_generate", None)
+    with torch.inference_mode():
+      ids = model.generate(input_ids, attention_mask=attention_mask, **kwargs)
+  _clear_generation_residue(model)
   return tokenizer.decode(ids[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
 
-def _run_bart_bounded(model, tokenizer, text: str) -> str | None:
-  """Run BART with a hard wall-clock cap; returns None on timeout."""
-  pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bart-gen")
-  fut = pool.submit(_run_bart, model, tokenizer, text)
-  try:
-    return fut.result(timeout=BART_INFERENCE_TIMEOUT_SEC)
-  except Exception:
-    logger.warning("BART inference exceeded %ss cap — using extractive fallback", BART_INFERENCE_TIMEOUT_SEC)
-    return None
-  finally:
-    pool.shutdown(wait=False, cancel_futures=True)
+def _run_bart_bounded(model, tokenizer, text: str, *, diversify: bool = False) -> str | None:
+  """
+  Run BART on the current infer thread (already off the event loop).
+
+  A nested ThreadPoolExecutor with shutdown(wait=False) used to abandon generate()
+  on timeout. The zombie decode kept mutating the shared model, so the next
+  report often received the previous summary.
+  """
+  with _generation_lock:
+    try:
+      return _run_bart(model, tokenizer, text, diversify=diversify)
+    except Exception as exc:
+      logger.warning("BART inference failed (%s) — using extractive fallback", exc)
+      return None
 
 
 # ── Input / output cleaning ───────────────────────────────────────────────────
@@ -332,11 +396,25 @@ def _extractive_fallback(text: str, target_words: int = DEFAULT_TARGET_WORDS) ->
 
 # ── Public summarize API ──────────────────────────────────────────────────────
 
+# Fingerprint of the last report actually sent to BART. Used only to detect a
+# regenerate of the same text (so we can sample instead of reprinting). Never
+# used to return a cached summary — every request always runs generate().
+_last_bart_input_fp = ""
+_last_fp_lock = threading.Lock()
+
+
+def _input_fingerprint(text: str) -> str:
+  return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
 def summarize_text(text: str, target_words: int = DEFAULT_TARGET_WORDS) -> tuple[str, str]:
   """
   Returns (summary_text, model_label).
+  Always runs a fresh generate against this request's text.
   Waits for model load; falls back to extractive on failure or timeout.
   """
+  global _last_bart_input_fp
+
   if not wait_for_model_ready(timeout_sec=REQUEST_MODEL_WAIT_SEC):
     if _model_failed:
       logger.warning("Model failed — extractive fallback: %s", _model_error)
@@ -349,17 +427,33 @@ def summarize_text(text: str, target_words: int = DEFAULT_TARGET_WORDS) -> tuple
   clean_text = _strip_disclaimers(text)
   clean_text = _strip_section_headers(clean_text)
   clean_text = _strip_parentheticals_from_input(clean_text)
-  logger.info("BART input after pre-processing: %d words", len(clean_text.split()))
   safe_text = prepare_text_for_bart(clean_text, _tokenizer, BART_SAFE_CHUNK_TOKENS)
+  fp = _input_fingerprint(safe_text)
+  with _last_fp_lock:
+    diversify = bool(_last_bart_input_fp) and fp == _last_bart_input_fp
+    _last_bart_input_fp = fp
+
+  logger.info(
+    "BART input after pre-processing: %d words | fp=%s | regenerate=%s",
+    len(clean_text.split()),
+    fp[:12],
+    diversify,
+  )
   t0 = time.monotonic()
-  result = _run_bart_bounded(_model, _tokenizer, safe_text)
+  result = _run_bart_bounded(_model, _tokenizer, safe_text, diversify=diversify)
   elapsed = time.monotonic() - t0
 
-  if not result:
+  if not result or len(result.split()) < 8:
     return _extractive_fallback(safe_text, target_words), "extractive-fallback"
 
   result = _fix_sentence_punctuation(result)
-  logger.info("BART: %.1fs | %d → %d words", elapsed, len(safe_text.split()), len(result.split()))
+  logger.info(
+    "BART: %.1fs | %d → %d words | fp=%s",
+    elapsed,
+    len(safe_text.split()),
+    len(result.split()),
+    fp[:12],
+  )
   return result, SUMMARIZATION_MODEL_ID
 
 
@@ -411,7 +505,7 @@ async def summarize_report(request: SummarizeRequest) -> SummarizeResponse:
   try:
     bart_summary, model_label = await loop.run_in_executor(
       _infer_executor,
-      lambda: summarize_text(prepared_text, target_words),
+      partial(summarize_text, prepared_text, target_words),
     )
   except RuntimeError as exc:
     raise ValueError(str(exc)) from exc

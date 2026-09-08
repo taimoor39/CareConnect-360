@@ -4,13 +4,6 @@ const toMins = (t) => {
   return h * 60 + m;
 };
 
-export const isOvernightShift = (start, end) => {
-  const s = toMins(start);
-  const e = toMins(end);
-  if (Number.isNaN(s) || Number.isNaN(e)) return false;
-  return e <= s;
-};
-
 export const validateShiftTimes = (start, end) => {
   if (!start || !end) {
     return { valid: false, error: 'Both times required' };

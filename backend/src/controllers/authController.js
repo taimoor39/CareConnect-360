@@ -62,7 +62,8 @@ const forgotPasswordSuccess = (res) =>
   });
 
 export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password: rawPassword } = req.body;
+  const password = String(rawPassword || '').trim();
   if (!email || !password) throw AppError.badRequest('Email and password are required');
 
   const normalizedEmail = String(email).toLowerCase().trim();

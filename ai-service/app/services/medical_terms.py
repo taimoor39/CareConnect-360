@@ -175,14 +175,3 @@ def get_python_terms() -> dict:
 
 # Backward compatibility for /api/terms
 MEDICAL_TERMS = dict(sorted(MEDICAL_TERMS_DICT.items(), key=lambda kv: kv[0]))
-
-
-def apply_terms(text: str, extra_terms: dict | None = None) -> dict:
-  """Legacy wrapper — always pass BART summary text, not input."""
-  from app.services.medical_dictionary import apply_medical_dictionary
-
-  return apply_medical_dictionary(text, get_python_terms(), extra_terms or {})
-
-
-def simplify_medical_terms(text: str, extra_medical_terms: dict | None = None) -> str:
-  return apply_terms(text, extra_medical_terms)["simplified_text"]

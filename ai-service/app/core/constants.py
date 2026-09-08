@@ -12,7 +12,6 @@ REQUEST_MODEL_WAIT_SEC = int(os.environ.get("REQUEST_MODEL_WAIT_SEC", "280"))
 BART_INFERENCE_TIMEOUT_SEC = int(os.environ.get("BART_INFERENCE_TIMEOUT_SEC", "60"))
 
 # BART-large-CNN hard context limit (tokens)
-BART_MAX_INPUT_TOKENS = 1024
 BART_SAFE_INPUT_TOKENS = 1020
 
 # BART generation — tuned for 120-150 word output covering ALL clinical sections.
@@ -42,8 +41,6 @@ MIN_INPUT_WORDS = 30
 MAX_INPUT_WORDS = 700
 MIN_SUMMARIZE_INPUT_CHARS = 50
 
-# Legacy aliases used by PDF route
-MIN_SUMMARIZE_WORDS = MIN_INPUT_WORDS
 DEFAULT_TARGET_WORDS = 200
 MIN_TARGET_WORDS = 80
 MAX_TARGET_WORDS = 280
