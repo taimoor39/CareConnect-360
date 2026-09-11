@@ -13,6 +13,7 @@ import auditLogger from '../utils/auditLogger.js';
 import { notifyAdmins } from '../realtime/adminRealtime.js';
 import { getSettings, sendEngagementEmail } from '../utils/emailService.js';
 import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js';
+import { mailIsConfigured, resolveEngagementTemplate, resolvePatientEmail } from '../utils/engagementTemplates.js';
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import {
@@ -27,27 +28,36 @@ import { getMedicalTermsMapForAI } from '../utils/medicalTermsForAI.js';
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8001';
 
-const sendSummaryReadyNotification = async (patient, reportTitle, settings) => {
+const sendSummaryReadyNotification = async (patient, reportTitle, settings, appointmentId = null) => {
+  const to = resolvePatientEmail(patient);
+  if (!patient?._id || !to) {
+    console.warn('[ER-5] Skip summary email: patient has no email');
+    return;
+  }
+  if (!mailIsConfigured(settings)) {
+    console.warn('[ER-5] Skip summary email: SMTP is not fully configured');
+    return;
+  }
+
+  const template = resolveEngagementTemplate(settings, 'aiSummaryReady');
+  if (!template.subject || !template.body) return;
+
+  const alreadySent = await wasAlreadySentToday(patient._id, 'ER-5', appointmentId);
+  if (alreadySent) return;
+
+  const clinicName = settings?.clinic?.name || 'CareConnect 360';
+  const variables = {
+    patientName: patient.name,
+    reportTitle: reportTitle || 'Medical Report',
+    clinicName,
+    clinicPhone: settings?.clinic?.phone || '',
+    clinicEmail: settings?.clinic?.email || '',
+    portalLink: `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/patient/reports`,
+  };
+
   try {
-    if (!settings?.email?.smtpHost) return;
-    if (!patient?.email) return;
-
-    const template = settings.emailTemplates?.aiSummaryReady;
-    if (!template?.subject || !template?.body) return;
-
-    const alreadySent = await wasAlreadySentToday(patient._id, 'ER-5');
-    if (alreadySent) return;
-
-    const clinicName = settings?.clinic?.name || 'CareConnect 360';
-    const variables = {
-      patientName: patient.name,
-      reportTitle: reportTitle || 'Medical Report',
-      clinicName,
-      portalLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/patient/reports`,
-    };
-
     await sendEngagementEmail({
-      to: patient.email,
+      to,
       subject: template.subject,
       bodyTemplate: template.body,
       variables,
@@ -60,14 +70,17 @@ const sendSummaryReadyNotification = async (patient, reportTitle, settings) => {
       type: 'summary_available',
       message: `Summary ready notification sent for report: ${reportTitle || 'Untitled'}`,
       status: 'Sent',
+      appointmentId,
     });
   } catch (err) {
+    console.error('[ER-5] Failed to send summary notification:', err.message);
     await logEngagement({
-      patientId: patient?._id || null,
+      patientId: patient._id,
       ruleId: 'ER-5',
       type: 'summary_available',
       message: 'Failed to send summary notification',
       status: 'Failed',
+      appointmentId,
       errorMessage: err.message,
     });
   }
@@ -771,9 +784,14 @@ export const approveConsultationSummary = asyncHandler(async (req, res) => {
 
   const [settings, patient] = await Promise.all([
     getSettings(),
-    Patient.findById(consultation.patientId).select('name email').lean(),
+    Patient.findById(consultation.patientId).select('name email contact').lean(),
   ]);
-  sendSummaryReadyNotification(patient, consultation.medicalReport.title, settings).catch(() => {});
+  sendSummaryReadyNotification(
+    patient,
+    consultation.medicalReport.title,
+    settings,
+    consultation.appointmentId,
+  ).catch((err) => console.error('[ER-5] Notification error:', err?.message || err));
 
   res.json({ success: true, message: 'Summary approved and visible to patient', data: summary });
 });

@@ -270,20 +270,35 @@ export const sendEngagementEmail = async ({
   variables,
   clinicName,
 }) => {
-  const transporter = await getTransporter();
-  const settings = await getSettings();
+  const recipient = String(to || '').trim();
+  if (!recipient) {
+    throw new Error('No recipient email address');
+  }
 
+  const settings = await getSettings();
+  const fromEmail = String(settings?.email?.fromEmail || '').trim();
+  const fromName = String(settings?.email?.fromName || clinicName || 'CareConnect 360').trim();
+  if (!fromEmail) {
+    throw new Error('From email is not configured in Settings.');
+  }
+
+  const transporter = await getTransporter();
   const renderedSubject = renderTemplate(subject, variables);
   const renderedBody = renderTemplate(bodyTemplate, variables);
-  const html = wrapInEmailHTML(renderedBody, clinicName);
+  if (!renderedSubject || !renderedBody) {
+    throw new Error('Email template subject or body is empty');
+  }
+
+  const html = wrapInEmailHTML(renderedBody, clinicName || fromName);
 
   await sendMailWithRetry(
     () =>
       transporter.sendMail({
-        from: `"${clinicName}" <${settings?.email?.fromEmail}>`,
-        to,
+        from: `"${fromName}" <${fromEmail}>`,
+        to: recipient,
         subject: renderedSubject,
         html,
+        ...(settings?.email?.replyTo ? { replyTo: settings.email.replyTo } : {}),
       }),
     { logLabel: 'ENGAGEMENT_EMAIL' },
   );

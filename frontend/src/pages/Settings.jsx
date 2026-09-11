@@ -461,8 +461,15 @@ function Settings() {
               onRunNow={async (key, name) => {
                 if (!window.confirm(`Run ${name} now?`)) return;
                 try {
-                  await runJobManually(key);
-                  toast.success(`Job '${name}' triggered successfully`);
+                  const res = await runJobManually(key);
+                  const stats = res.data?.data || {};
+                  if (stats.reason === 'smtp') {
+                    toast.error('SMTP is not fully configured. Set host, user, and from email under Email settings.');
+                  } else if (typeof stats.sent === 'number') {
+                    toast.success(`${name}: sent ${stats.sent}, skipped ${stats.skipped || 0}, failed ${stats.failed || 0}`);
+                  } else {
+                    toast.success(`Job '${name}' completed`);
+                  }
                   loadJobLogs();
                 } catch (err) {
                   toast.error(err.response?.data?.message || 'Failed to trigger job');

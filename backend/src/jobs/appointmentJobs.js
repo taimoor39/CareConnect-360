@@ -3,11 +3,10 @@
  *
  * Schedules are persisted on SystemSettings.cronJobs (see settings UI). Jobs include:
  *   ER-1  Appointment reminders (~24h ahead, PKT)
- *   ER-2  Missed appointment notices
- *   ER-3  Prescription renewal reminders (via prescription renewal cron)
+ *   ER-2  Missed appointment notices (after marking today's unattended slots)
+ *   ER-3  Prescription renewal reminders
  *   ER-4  Re-engagement for inactive patients
- *
- * Each send is deduped via EngagementLog / wasAlreadySentToday where applicable.
+ *   ER-5  AI summary availability (catch-up; also sent on doctor approve)
  */
 import cron from 'node-cron';
 import mongoose from 'mongoose';
@@ -18,12 +17,18 @@ import DoctorProfile from '../models/DoctorProfile.js';
 import EngagementLog from '../models/EngagementLog.js';
 import Patient from '../models/Patient.js';
 import { getSettings, sendEngagementEmail } from '../utils/emailService.js';
+import {
+  mailIsConfigured,
+  resolveEngagementTemplate,
+  resolvePatientEmail,
+} from '../utils/engagementTemplates.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
 import { logEngagement, wasAlreadySentToday } from '../utils/engagementHelper.js';
 import auditLogger from '../utils/auditLogger.js';
 import { pktNow } from '../utils/timezone.js';
 
 const CLINIC_DEFAULT = 'CareConnect 360';
+const PATIENT_MAIL_SELECT = 'name email phone patientId patientCode contact';
 
 const formatDate = (value) => {
   const dt = new Date(value);
@@ -40,6 +45,90 @@ const formatTimeSlot = (timeSlot) => String(timeSlot || '').trim();
 
 const getClinicName = (settings) => settings?.clinic?.name || CLINIC_DEFAULT;
 
+const clinicVars = (settings) => ({
+  clinicName: getClinicName(settings),
+  clinicPhone: settings?.clinic?.phone || '',
+  clinicEmail: settings?.clinic?.email || '',
+});
+
+const slotHasPassed = (timeSlot, now) => {
+  const start = String(timeSlot || '').split('-')[0]?.trim();
+  if (!/^\d{1,2}:\d{2}$/.test(start)) {
+    return now.hour() >= 23;
+  }
+  const [h, m] = start.split(':').map(Number);
+  const slotMoment = now.startOf('day').hour(h).minute(m).second(0);
+  return now.isAfter(slotMoment.add(20, 'minute'));
+};
+
+async function sendRuleEmail({
+  settings,
+  templateKey,
+  patient,
+  ruleId,
+  type,
+  message,
+  appointmentId = null,
+  extraVariables = {},
+}) {
+  const patientId = patient?._id;
+  const to = resolvePatientEmail(patient);
+  if (!patientId || !to) return 'skipped';
+
+  const template = resolveEngagementTemplate(settings, templateKey);
+  if (!template.subject || !template.body) return 'skipped';
+
+  const clinicName = getClinicName(settings);
+  const variables = {
+    ...clinicVars(settings),
+    patientName: patient.name || '',
+    ...extraVariables,
+  };
+
+  try {
+    await sendEngagementEmail({
+      to,
+      subject: template.subject,
+      bodyTemplate: template.body,
+      variables,
+      clinicName,
+    });
+    const logged = await logEngagement({
+      patientId,
+      ruleId,
+      type,
+      message,
+      status: 'Sent',
+      appointmentId,
+    });
+    if (!logged) {
+      console.error(`[CRON ${ruleId}] Email sent but Sent log was not saved for patient ${patientId}`);
+    }
+    return 'sent';
+  } catch (err) {
+    console.error(`[CRON ${ruleId}] Send failed:`, err.message);
+    await logEngagement({
+      patientId,
+      ruleId,
+      type,
+      message,
+      status: 'Failed',
+      appointmentId,
+      errorMessage: err.message,
+    });
+    return 'failed';
+  }
+}
+
+const loadMailSettings = async (label) => {
+  const settings = await getSettings();
+  if (!mailIsConfigured(settings)) {
+    console.log(`[${label}] SMTP is not fully configured (host, user, from email). Skipping send.`);
+    return null;
+  }
+  return settings;
+};
+
 export const runAppointmentReminders = async () => {
   console.log('[CRON ER-1] Running appointment reminders...');
   let sent = 0;
@@ -47,89 +136,59 @@ export const runAppointmentReminders = async () => {
   let failed = 0;
 
   try {
-    const settings = await getSettings();
-    if (!settings?.email?.smtpHost) {
-      console.log('[CRON ER-1] Email not configured. Skipping.');
-      return;
-    }
+    const settings = await loadMailSettings('CRON ER-1');
+    if (!settings) return { sent, skipped, failed, reason: 'smtp' };
 
-    const template = settings.emailTemplates?.appointmentReminder;
-    if (!template?.subject || !template?.body) {
-      console.log('[CRON ER-1] Template not configured.');
-      return;
-    }
-
-    // ER-1 should evaluate 24 hours ahead in PKT.
     const reminderTarget = pktNow().add(24, 'hour');
     const tomorrowBounds = dayBoundsInPakistan(reminderTarget.format('YYYY-MM-DD'));
-    if (!tomorrowBounds) return;
+    if (!tomorrowBounds) return { sent, skipped, failed };
 
     const appointments = await Appointment.find({
       date: { $gte: tomorrowBounds.start, $lte: tomorrowBounds.end },
       status: 'Scheduled',
     })
-      .populate('patientId', 'name email phone patientId patientCode')
+      .populate('patientId', PATIENT_MAIL_SELECT)
       .populate('doctorId', 'name')
       .lean();
 
+    console.log(`[CRON ER-1] Found ${appointments.length} scheduled appointment(s) for ${tomorrowBounds.isoDate}`);
+
     for (const appt of appointments) {
-      try {
-        const patient = appt.patientId;
-        if (!patient?.email) {
-          skipped += 1;
-          continue;
-        }
+      const patient = appt.patientId;
+      if (!resolvePatientEmail(patient)) {
+        skipped += 1;
+        continue;
+      }
 
-        const alreadySent = await wasAlreadySentToday(patient._id, 'ER-1', appt._id);
-        if (alreadySent) {
-          skipped += 1;
-          continue;
-        }
+      const alreadySent = await wasAlreadySentToday(patient._id, 'ER-1', appt._id);
+      if (alreadySent) {
+        skipped += 1;
+        continue;
+      }
 
-        const profile = await DoctorProfile.findOne({ userId: appt?.doctorId?._id })
-          .select('specialization')
-          .lean();
+      const profile = await DoctorProfile.findOne({ userId: appt?.doctorId?._id })
+        .select('specialization')
+        .lean();
 
-        const clinicName = getClinicName(settings);
-        const variables = {
-          patientName: patient.name,
+      const result = await sendRuleEmail({
+        settings,
+        templateKey: 'appointmentReminder',
+        patient,
+        ruleId: 'ER-1',
+        type: 'appointment_reminder',
+        message: `Reminder sent for appointment on ${formatDate(appt.date)}`,
+        appointmentId: appt._id,
+        extraVariables: {
           doctorName: appt?.doctorId?.name || '',
           specialization: profile?.specialization || '',
           date: formatDate(appt.date),
           time: formatTimeSlot(appt.timeSlot),
-          clinicName,
           patientCode: patient.patientId || patient.patientCode || '',
-        };
-
-        await sendEngagementEmail({
-          to: patient.email,
-          subject: template.subject,
-          bodyTemplate: template.body,
-          variables,
-          clinicName,
-        });
-
-        await logEngagement({
-          patientId: patient._id,
-          ruleId: 'ER-1',
-          type: 'appointment_reminder',
-          message: `Reminder sent for appointment on ${formatDate(appt.date)}`,
-          status: 'Sent',
-          appointmentId: appt._id,
-        });
-        sent += 1;
-      } catch (err) {
-        failed += 1;
-        await logEngagement({
-          patientId: appt?.patientId?._id || null,
-          ruleId: 'ER-1',
-          type: 'appointment_reminder',
-          message: 'Failed to send reminder',
-          status: 'Failed',
-          appointmentId: appt?._id || null,
-          errorMessage: err.message,
-        });
-      }
+        },
+      });
+      if (result === 'sent') sent += 1;
+      else if (result === 'failed') failed += 1;
+      else skipped += 1;
     }
 
     await auditLogger({
@@ -143,6 +202,7 @@ export const runAppointmentReminders = async () => {
   } catch (err) {
     console.error('[CRON ER-1] Fatal error:', err.message);
   }
+  return { sent, skipped, failed };
 };
 
 export const runMissedAppointmentNotifications = async () => {
@@ -152,76 +212,51 @@ export const runMissedAppointmentNotifications = async () => {
   let failed = 0;
 
   try {
-    const settings = await getSettings();
-    if (!settings?.email?.smtpHost) return;
-
-    const template = settings.emailTemplates?.missedAppointment;
-    if (!template?.subject || !template?.body) return;
+    const settings = await loadMailSettings('CRON ER-2');
+    if (!settings) return { sent, skipped, failed, reason: 'smtp' };
 
     const todayBounds = todayBoundsInPakistan();
-    if (!todayBounds) return;
+    if (!todayBounds) return { sent, skipped, failed };
 
     const missedAppointments = await Appointment.find({
       status: 'Missed',
       date: { $gte: todayBounds.start, $lte: todayBounds.end },
     })
-      .populate('patientId', 'name email patientId')
+      .populate('patientId', PATIENT_MAIL_SELECT)
       .populate('doctorId', 'name')
       .lean();
 
+    console.log(`[CRON ER-2] Found ${missedAppointments.length} missed appointment(s)`);
+
     for (const appt of missedAppointments) {
-      try {
-        const patient = appt.patientId;
-        if (!patient?.email) {
-          skipped += 1;
-          continue;
-        }
+      const patient = appt.patientId;
+      if (!resolvePatientEmail(patient)) {
+        skipped += 1;
+        continue;
+      }
 
-        const alreadySent = await wasAlreadySentToday(patient._id, 'ER-2', appt._id);
-        if (alreadySent) {
-          skipped += 1;
-          continue;
-        }
+      const alreadySent = await wasAlreadySentToday(patient._id, 'ER-2', appt._id);
+      if (alreadySent) {
+        skipped += 1;
+        continue;
+      }
 
-        const clinicName = getClinicName(settings);
-        const variables = {
-          patientName: patient.name,
+      const result = await sendRuleEmail({
+        settings,
+        templateKey: 'missedAppointment',
+        patient,
+        ruleId: 'ER-2',
+        type: 'missed_appointment',
+        message: `Missed appointment notification sent for ${formatDate(appt.date)}`,
+        appointmentId: appt._id,
+        extraVariables: {
           doctorName: appt?.doctorId?.name || '',
           date: formatDate(appt.date),
-          clinicName,
-          clinicPhone: settings?.clinic?.phone || '',
-          clinicEmail: settings?.clinic?.email || '',
-        };
-
-        await sendEngagementEmail({
-          to: patient.email,
-          subject: template.subject,
-          bodyTemplate: template.body,
-          variables,
-          clinicName,
-        });
-
-        await logEngagement({
-          patientId: patient._id,
-          ruleId: 'ER-2',
-          type: 'missed_appointment',
-          message: `Missed appointment notification sent for ${formatDate(appt.date)}`,
-          status: 'Sent',
-          appointmentId: appt._id,
-        });
-        sent += 1;
-      } catch (err) {
-        failed += 1;
-        await logEngagement({
-          patientId: appt?.patientId?._id || null,
-          ruleId: 'ER-2',
-          type: 'missed_appointment',
-          message: 'Failed to send missed notification',
-          status: 'Failed',
-          appointmentId: appt?._id || null,
-          errorMessage: err.message,
-        });
-      }
+        },
+      });
+      if (result === 'sent') sent += 1;
+      else if (result === 'failed') failed += 1;
+      else skipped += 1;
     }
 
     await auditLogger({
@@ -235,6 +270,7 @@ export const runMissedAppointmentNotifications = async () => {
   } catch (err) {
     console.error('[CRON ER-2] Fatal error:', err.message);
   }
+  return { sent, skipped, failed };
 };
 
 export const runPrescriptionRenewals = async () => {
@@ -244,79 +280,57 @@ export const runPrescriptionRenewals = async () => {
   let failed = 0;
 
   try {
-    const settings = await getSettings();
-    if (!settings?.email?.smtpHost) return;
+    const settings = await loadMailSettings('CRON ER-3');
+    if (!settings) return { sent, skipped, failed, reason: 'smtp' };
 
-    const template = settings.emailTemplates?.prescriptionRenewal;
-    if (!template?.subject || !template?.body) return;
-
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const renewalBounds = dayBoundsInPakistan(toPakistanISODate(sevenDaysFromNow));
-    if (!renewalBounds) return;
+    const renewalIso = pktNow().add(7, 'day').format('YYYY-MM-DD');
+    const renewalBounds = dayBoundsInPakistan(renewalIso);
+    if (!renewalBounds) return { sent, skipped, failed };
 
     const consultations = await Consultation.find({
       followUpDate: { $gte: renewalBounds.start, $lte: renewalBounds.end },
+      isDraft: { $ne: true },
     })
-      .populate({ path: 'patientId', select: 'name email patientId' })
+      .populate({ path: 'patientId', select: PATIENT_MAIL_SELECT })
       .populate({ path: 'doctorId', select: 'name' })
       .lean();
 
+    console.log(`[CRON ER-3] Found ${consultations.length} follow-up(s) on ${renewalIso}`);
+
     for (const consult of consultations) {
-      try {
-        const patient = consult.patientId;
-        if (!patient?.email) {
-          skipped += 1;
-          continue;
-        }
+      const patient = consult.patientId;
+      if (!resolvePatientEmail(patient)) {
+        skipped += 1;
+        continue;
+      }
 
-        const alreadySent = await wasAlreadySentToday(patient._id, 'ER-3');
-        if (alreadySent) {
-          skipped += 1;
-          continue;
-        }
+      const alreadySent = await wasAlreadySentToday(patient._id, 'ER-3', consult.appointmentId);
+      if (alreadySent) {
+        skipped += 1;
+        continue;
+      }
 
-        const medicineList = consult.prescription?.items?.length
-          ? consult.prescription.items.map((p) => `${p.medicineName} (${p.dosage})`).join(', ')
-          : 'Your prescribed medicines';
+      const medicineList = consult.prescription?.items?.length
+        ? consult.prescription.items.map((p) => `${p.medicineName} (${p.dosage})`).join(', ')
+        : 'Your prescribed medicines';
 
-        const clinicName = getClinicName(settings);
-        const variables = {
-          patientName: patient.name,
+      const result = await sendRuleEmail({
+        settings,
+        templateKey: 'prescriptionRenewal',
+        patient,
+        ruleId: 'ER-3',
+        type: 'prescription_renewal',
+        message: `Renewal alert sent for ${formatDate(consult.followUpDate)}`,
+        appointmentId: consult.appointmentId || null,
+        extraVariables: {
           doctorName: consult?.doctorId?.name || '',
           renewalDate: formatDate(consult.followUpDate),
           medicationList: medicineList,
-          clinicName,
-          clinicPhone: settings?.clinic?.phone || '',
-        };
-
-        await sendEngagementEmail({
-          to: patient.email,
-          subject: template.subject,
-          bodyTemplate: template.body,
-          variables,
-          clinicName,
-        });
-
-        await logEngagement({
-          patientId: patient._id,
-          ruleId: 'ER-3',
-          type: 'prescription_renewal',
-          message: `Renewal alert sent for ${formatDate(consult.followUpDate)}`,
-          status: 'Sent',
-        });
-        sent += 1;
-      } catch (err) {
-        failed += 1;
-        await logEngagement({
-          patientId: consult?.patientId?._id || null,
-          ruleId: 'ER-3',
-          type: 'prescription_renewal',
-          message: 'Failed to send renewal alert',
-          status: 'Failed',
-          errorMessage: err.message,
-        });
-      }
+        },
+      });
+      if (result === 'sent') sent += 1;
+      else if (result === 'failed') failed += 1;
+      else skipped += 1;
     }
 
     await auditLogger({
@@ -330,6 +344,7 @@ export const runPrescriptionRenewals = async () => {
   } catch (err) {
     console.error('[CRON ER-3] Fatal error:', err.message);
   }
+  return { sent, skipped, failed };
 };
 
 export const runMissedDetector = async () => {
@@ -338,17 +353,27 @@ export const runMissedDetector = async () => {
     const todayBounds = todayBoundsInPakistan();
     const todayStart = todayBounds?.start || new Date();
     const todayEnd = todayBounds?.end || new Date();
+    const now = pktNow();
 
-    const result = await Appointment.updateMany(
-      {
-        status: 'Scheduled',
-        date: { $gte: todayStart, $lte: todayEnd },
-      },
-      {
-        $set: { status: 'Missed' },
-      }
-    );
-    console.log(`[CRON] Marked ${result.modifiedCount} appointments as Missed`);
+    const scheduledToday = await Appointment.find({
+      status: 'Scheduled',
+      date: { $gte: todayStart, $lte: todayEnd },
+    }).select('_id timeSlot').lean();
+
+    const dueIds = scheduledToday
+      .filter((appt) => slotHasPassed(appt.timeSlot, now))
+      .map((appt) => appt._id);
+
+    let modifiedCount = 0;
+    if (dueIds.length) {
+      const result = await Appointment.updateMany(
+        { _id: { $in: dueIds }, status: 'Scheduled' },
+        { $set: { status: 'Missed' } },
+      );
+      modifiedCount = Number(result.modifiedCount || 0);
+    }
+
+    console.log(`[CRON] Marked ${modifiedCount} appointments as Missed`);
 
     const rawSystemId = process.env.SYSTEM_USER_ID || '';
     const systemUserId = mongoose.Types.ObjectId.isValid(rawSystemId) ? rawSystemId : null;
@@ -357,13 +382,20 @@ export const runMissedDetector = async () => {
       action: 'CRON_MISSED_APPOINTMENTS',
       target: `Appointment:Batch:${toPakistanISODate(todayStart)}`,
       targetCollection: 'appointments',
-      details: {
-        modifiedCount: Number(result.modifiedCount || 0),
-      },
+      details: { modifiedCount },
     });
+    return { modifiedCount };
   } catch (err) {
     console.error('[CRON] Missed appointment job failed:', err);
+    return { modifiedCount: 0 };
   }
+};
+
+/** Mark today's unattended slots as Missed, then email those patients. */
+export const runMissedAppointmentWorkflow = async () => {
+  const marked = await runMissedDetector();
+  const mailed = await runMissedAppointmentNotifications();
+  return { ...marked, ...mailed };
 };
 
 export const runPatientReEngagements = async () => {
@@ -373,94 +405,71 @@ export const runPatientReEngagements = async () => {
   let failed = 0;
 
   try {
-    const settings = await getSettings();
-    if (!settings?.email?.smtpHost) return;
+    const settings = await loadMailSettings('CRON ER-4');
+    if (!settings) return { sent, skipped, failed, reason: 'smtp' };
 
-    const template = settings.emailTemplates?.reEngagement;
-    if (!template?.subject || !template?.body) return;
-
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgo = pktNow().subtract(6, 'month').toDate();
 
     const activePatients = await Patient.find({
       isArchived: false,
       status: { $in: ['Active', 'active'] },
-      email: { $exists: true, $ne: '' },
     })
-      .select('_id name email patientId createdAt')
+      .select('_id name email patientId createdAt contact')
       .lean();
 
+    console.log(`[CRON ER-4] Scanning ${activePatients.length} active patient(s)`);
+
     for (const patient of activePatients) {
-      try {
-        const lastAppt = await Appointment.findOne({
-          patientId: patient._id,
-          status: 'Completed',
-        })
-          .sort({ date: -1 })
-          .select('date')
-          .lean();
-
-        const lastVisit = lastAppt?.date || null;
-        if (!lastVisit) {
-          skipped += 1;
-          continue;
-        }
-
-        if (new Date(lastVisit) > sixMonthsAgo) {
-          skipped += 1;
-          continue;
-        }
-
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const recentlySent = await EngagementLog.findOne({
-          patientId: patient._id,
-          ruleId: 'ER-4',
-          status: 'Sent',
-          triggeredAt: { $gte: oneWeekAgo },
-        }).lean();
-        if (recentlySent) {
-          skipped += 1;
-          continue;
-        }
-
-        const clinicName = getClinicName(settings);
-        const variables = {
-          patientName: patient.name,
-          lastVisitDate: formatDate(lastVisit),
-          clinicName,
-          clinicPhone: settings?.clinic?.phone || '',
-          clinicEmail: settings?.clinic?.email || '',
-        };
-
-        await sendEngagementEmail({
-          to: patient.email,
-          subject: template.subject,
-          bodyTemplate: template.body,
-          variables,
-          clinicName,
-        });
-
-        await logEngagement({
-          patientId: patient._id,
-          ruleId: 'ER-4',
-          type: 're_engagement',
-          message: `Re-engagement email sent. Last visit: ${formatDate(lastVisit)}`,
-          status: 'Sent',
-        });
-
-        sent += 1;
-      } catch (err) {
-        failed += 1;
-        await logEngagement({
-          patientId: patient._id,
-          ruleId: 'ER-4',
-          type: 're_engagement',
-          message: 'Failed to send re-engagement',
-          status: 'Failed',
-          errorMessage: err.message,
-        });
+      if (!resolvePatientEmail(patient)) {
+        skipped += 1;
+        continue;
       }
+
+      const lastAppt = await Appointment.findOne({
+        patientId: patient._id,
+        status: 'Completed',
+      })
+        .sort({ date: -1 })
+        .select('date')
+        .lean();
+
+      const lastVisit = lastAppt?.date || null;
+      if (!lastVisit) {
+        skipped += 1;
+        continue;
+      }
+
+      if (new Date(lastVisit) > sixMonthsAgo) {
+        skipped += 1;
+        continue;
+      }
+
+      const oneWeekAgo = pktNow().subtract(7, 'day').toDate();
+      const recentlySent = await EngagementLog.findOne({
+        patientId: patient._id,
+        ruleId: 'ER-4',
+        status: 'Sent',
+        triggeredAt: { $gte: oneWeekAgo },
+      }).lean();
+      if (recentlySent) {
+        skipped += 1;
+        continue;
+      }
+
+      const result = await sendRuleEmail({
+        settings,
+        templateKey: 'reEngagement',
+        patient,
+        ruleId: 'ER-4',
+        type: 're_engagement',
+        message: `Re-engagement email sent. Last visit: ${formatDate(lastVisit)}`,
+        extraVariables: {
+          lastVisitDate: formatDate(lastVisit),
+        },
+      });
+      if (result === 'sent') sent += 1;
+      else if (result === 'failed') failed += 1;
+      else skipped += 1;
     }
 
     await auditLogger({
@@ -474,58 +483,145 @@ export const runPatientReEngagements = async () => {
   } catch (err) {
     console.error('[CRON ER-4] Fatal error:', err.message);
   }
+  return { sent, skipped, failed };
+};
+
+export const runAiSummaryAvailability = async () => {
+  console.log('[CRON ER-5] Checking approved AI summaries...');
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  try {
+    const settings = await loadMailSettings('CRON ER-5');
+    if (!settings) return { sent, skipped, failed, reason: 'smtp' };
+
+    const since = pktNow().subtract(2, 'day').toDate();
+    const consultations = await Consultation.find({
+      'medicalReport.summary.status': 'Approved',
+      'medicalReport.summary.approvedAt': { $gte: since },
+    })
+      .populate({ path: 'patientId', select: PATIENT_MAIL_SELECT })
+      .lean();
+
+    console.log(`[CRON ER-5] Found ${consultations.length} recently approved summary(s)`);
+
+    const portalLink = `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')}/patient/reports`;
+
+    for (const consult of consultations) {
+      const patient = consult.patientId;
+      if (!resolvePatientEmail(patient)) {
+        skipped += 1;
+        continue;
+      }
+
+      const alreadySent = await wasAlreadySentToday(patient._id, 'ER-5', consult.appointmentId);
+      if (alreadySent) {
+        skipped += 1;
+        continue;
+      }
+
+      const reportTitle = consult.medicalReport?.title || 'Medical Report';
+      const result = await sendRuleEmail({
+        settings,
+        templateKey: 'aiSummaryReady',
+        patient,
+        ruleId: 'ER-5',
+        type: 'summary_available',
+        message: `Summary ready notification sent for report: ${reportTitle}`,
+        appointmentId: consult.appointmentId || null,
+        extraVariables: {
+          reportTitle,
+          portalLink,
+        },
+      });
+      if (result === 'sent') sent += 1;
+      else if (result === 'failed') failed += 1;
+      else skipped += 1;
+    }
+
+    await auditLogger({
+      userId: null,
+      action: 'CRON_AI_SUMMARY_AVAILABILITY',
+      target: `Consultation:AiSummary:${toPakistanISODate(new Date())}`,
+      targetCollection: 'consultations',
+      details: { sent, skipped, failed },
+    });
+    console.log(`[CRON ER-5] Done. Sent:${sent} Skipped:${skipped} Failed:${failed}`);
+  } catch (err) {
+    console.error('[CRON ER-5] Fatal error:', err.message);
+  }
+  return { sent, skipped, failed };
+};
+
+const stopTask = (task) => {
+  try {
+    if (typeof task?.stop === 'function') task.stop();
+    if (typeof task?.destroy === 'function') task.destroy();
+  } catch {
+    /* already stopped */
+  }
+};
+
+const scheduleJob = (name, expression, handler) => {
+  const expr = String(expression || '').trim();
+  const valid = typeof cron.validate === 'function' ? cron.validate(expr) : Boolean(expr);
+  if (!expr || !valid) {
+    console.error(`[CRON] Invalid schedule for ${name}:`, expression);
+    return;
+  }
+  const task = cron.schedule(
+    expr,
+    () => {
+      handler().catch((err) => console.error(`[CRON] ${name} failed:`, err?.message || err));
+    },
+    { timezone: 'Asia/Karachi' },
+  );
+  if (typeof task?.start === 'function') task.start();
+  global.cronTasks[name] = task;
+  console.log(`[CRON] ${name} → ${expr} (Asia/Karachi)`);
 };
 
 export const startCronJobs = (schedules = {}) => {
   const defaults = {
     appointmentReminder: '0 9 * * *',
-    missedDetector: '59 23 * * *',
-    missedNotification: '58 23 * * *',
+    missedWorkflow: '59 23 * * *',
     prescriptionRenewal: '0 8 * * *',
     reEngagement: '0 10 * * *',
+    aiSummaryReady: '10 * * * *',
   };
 
   global.cronTasks = global.cronTasks || {};
-  Object.values(global.cronTasks).forEach((task) => {
-    if (task?.destroy) task.destroy();
-  });
+  Object.values(global.cronTasks).forEach(stopTask);
+  global.cronTasks = {};
 
   if (schedules.appointmentReminder !== false) {
-    global.cronTasks.appointmentReminder = cron.schedule(
+    scheduleJob(
+      'appointmentReminder',
       schedules.appointmentReminder || defaults.appointmentReminder,
-      () => { runAppointmentReminders().catch(() => {}); },
-      { timezone: 'Asia/Karachi' }
+      runAppointmentReminders,
     );
   }
 
-  global.cronTasks.missedDetector = cron.schedule(
-    defaults.missedDetector,
-    () => { runMissedDetector().catch(() => {}); },
-    { timezone: 'Asia/Karachi' }
-  );
-
-  global.cronTasks.missedNotification = cron.schedule(
-    defaults.missedNotification,
-    () => { runMissedAppointmentNotifications().catch(() => {}); },
-    { timezone: 'Asia/Karachi' }
-  );
+  scheduleJob('missedWorkflow', defaults.missedWorkflow, runMissedAppointmentWorkflow);
 
   if (schedules.prescriptionRenewal !== false) {
-    global.cronTasks.prescriptionRenewal = cron.schedule(
+    scheduleJob(
+      'prescriptionRenewal',
       schedules.prescriptionRenewal || defaults.prescriptionRenewal,
-      () => { runPrescriptionRenewals().catch(() => {}); },
-      { timezone: 'Asia/Karachi' }
+      runPrescriptionRenewals,
     );
   }
 
   if (schedules.reEngagement !== false) {
-    global.cronTasks.reEngagement = cron.schedule(
+    scheduleJob(
+      'reEngagement',
       schedules.reEngagement || defaults.reEngagement,
-      () => { runPatientReEngagements().catch(() => {}); },
-      { timezone: 'Asia/Karachi' }
+      runPatientReEngagements,
     );
   }
 
+  scheduleJob('aiSummaryReady', defaults.aiSummaryReady, runAiSummaryAvailability);
+
   console.log('[CRON] All jobs scheduled');
 };
-

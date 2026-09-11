@@ -8,7 +8,7 @@ const TEMPLATE_KEYS = [
   'aiSummaryReady',
 ];
 
-const JOB_NAMES = ['appointmentReminder', 'patientReEngagement', 'prescriptionRenewal'];
+const JOB_NAMES = ['appointmentReminder', 'patientReEngagement', 'prescriptionRenewal', 'missedAppointment', 'missedAppointmentDetector', 'aiSummaryReady'];
 
 export const securityValidator = [
   body('jwtExpiryHours')

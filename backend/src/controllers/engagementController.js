@@ -1,16 +1,35 @@
 import EngagementLog from '../models/EngagementLog.js';
 import SystemSettings from '../models/SystemSettings.js';
+import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { dayBoundsInPakistan, toPakistanISODate, todayBoundsInPakistan } from '../utils/dateTime.js';
-import { sendEngagementEmail } from '../utils/emailService.js';
+import { sendEngagementEmail, toEmailErrorMessage } from '../utils/emailService.js';
+import { mailIsConfigured, resolveEngagementTemplate } from '../utils/engagementTemplates.js';
 import { paginationMeta, parsePagination } from '../utils/query.js';
 
 const RULE_MAP = {
-  'ER-1': { type: 'appointment_reminder', templateKey: 'appointmentReminder' },
-  'ER-2': { type: 'missed_appointment', templateKey: 'missedAppointment' },
-  'ER-3': { type: 'prescription_renewal', templateKey: 'prescriptionRenewal' },
-  'ER-4': { type: 're_engagement', templateKey: 'reEngagement' },
-  'ER-5': { type: 'summary_available', templateKey: 'aiSummaryReady' },
+  'ER-1': { type: 'appointment_reminder', templateKey: 'appointmentReminder', label: 'Appointment reminder' },
+  'ER-2': { type: 'missed_appointment', templateKey: 'missedAppointment', label: 'Missed appointment' },
+  'ER-3': { type: 'prescription_renewal', templateKey: 'prescriptionRenewal', label: 'Prescription renewal' },
+  'ER-4': { type: 're_engagement', templateKey: 'reEngagement', label: 'Re-engagement' },
+  'ER-5': { type: 'summary_available', templateKey: 'aiSummaryReady', label: 'AI summary availability' },
+};
+
+const JOB_KEY_TO_RULE = {
+  appointmentReminder: 'ER-1',
+  missedAppointmentDetector: 'ER-2',
+  missedAppointment: 'ER-2',
+  prescriptionRenewal: 'ER-3',
+  patientReEngagement: 'ER-4',
+  aiSummaryReady: 'ER-5',
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const resolveRuleId = (raw) => {
+  const key = String(raw || '').trim();
+  if (RULE_MAP[key]) return key;
+  return JOB_KEY_TO_RULE[key] || null;
 };
 
 export const getEngagementLogs = asyncHandler(async (req, res) => {
@@ -80,30 +99,31 @@ export const getEngagementStats = asyncHandler(async (_req, res) => {
 });
 
 export const sendEngagementTestEmail = asyncHandler(async (req, res) => {
-  const { ruleId } = req.params;
-  const rule = RULE_MAP[ruleId];
+  const ruleId = resolveRuleId(req.params.ruleId);
+  const rule = ruleId ? RULE_MAP[ruleId] : null;
   if (!rule) {
-    return res.status(400).json({ success: false, message: 'Invalid ruleId' });
+    return res.status(400).json({ success: false, message: 'Invalid scheduled job' });
   }
 
   const settings = await SystemSettings.findOne({}).lean();
-  if (!settings?.email?.smtpHost) {
-    return res.status(400).json({ success: false, message: 'SMTP is not configured' });
+  if (!mailIsConfigured(settings)) {
+    return res.status(400).json({ success: false, message: 'SMTP is not configured. Set host, user, and from email in Email settings.' });
   }
 
-  const to = String(req.body?.testEmail || req.user?.email || '').trim();
-  if (!to) {
-    return res.status(400).json({ success: false, message: 'No test email available' });
+  const to = String(req.body?.testEmail || req.body?.email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(to)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address' });
   }
 
-  const template = settings?.emailTemplates?.[rule.templateKey];
+  const template = resolveEngagementTemplate(settings, rule.templateKey);
   if (!template?.subject || !template?.body) {
     return res.status(400).json({ success: false, message: `${rule.templateKey} template not configured` });
   }
 
   const clinicName = settings?.clinic?.name || 'CareConnect 360';
+  const portalBase = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
   const variables = {
-    patientName: req.user?.name || 'Patient',
+    patientName: 'Test Patient',
     doctorName: 'Demo Doctor',
     specialization: 'General Medicine',
     date: toPakistanISODate(new Date()),
@@ -115,16 +135,25 @@ export const sendEngagementTestEmail = asyncHandler(async (req, res) => {
     medicationList: 'Paracetamol 500mg',
     lastVisitDate: toPakistanISODate(new Date()),
     reportTitle: 'Sample Lab Report',
-    portalLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/patient/reports`,
+    portalLink: `${portalBase}/patient/reports`,
+    bookingLink: `${portalBase}/login`,
   };
 
-  await sendEngagementEmail({
-    to,
-    subject: template.subject,
-    bodyTemplate: template.body,
-    variables,
-    clinicName,
-  });
+  try {
+    await sendEngagementEmail({
+      to,
+      subject: `[TEST] ${template.subject}`,
+      bodyTemplate: template.body,
+      variables,
+      clinicName,
+    });
+  } catch (err) {
+    throw AppError.badRequest(toEmailErrorMessage(err));
+  }
 
-  res.json({ success: true, message: `Test ${ruleId} email sent to ${to}` });
+  res.json({
+    success: true,
+    message: `Test ${rule.label} email sent to ${to}`,
+    data: { to, ruleId, templateKey: rule.templateKey },
+  });
 });

@@ -6,7 +6,9 @@ import MedicalTerm from '../models/MedicalTerm.js';
 import SystemSettings from '../models/SystemSettings.js';
 import User from '../models/User.js';
 import {
+  runAiSummaryAvailability,
   runAppointmentReminders,
+  runMissedAppointmentWorkflow,
   runPatientReEngagements,
   runPrescriptionRenewals,
   startCronJobs,
@@ -54,14 +56,17 @@ const CRON_JOB_RUNNERS = {
   appointmentReminder: runAppointmentReminders,
   patientReEngagement: runPatientReEngagements,
   prescriptionRenewal: runPrescriptionRenewals,
+  missedAppointment: runMissedAppointmentWorkflow,
+  missedAppointmentDetector: runMissedAppointmentWorkflow,
+  aiSummaryReady: runAiSummaryAvailability,
 };
 
 const applyCronSchedules = (settings) => {
   const jobs = settings?.cronJobs || {};
   startCronJobs({
-    appointmentReminder: jobs.appointmentReminder?.enabled ? jobs.appointmentReminder.schedule : false,
-    prescriptionRenewal: jobs.prescriptionRenewal?.enabled ? jobs.prescriptionRenewal.schedule : false,
-    reEngagement: jobs.patientReEngagement?.enabled ? jobs.patientReEngagement.schedule : false,
+    appointmentReminder: jobs.appointmentReminder?.enabled === false ? false : jobs.appointmentReminder?.schedule,
+    prescriptionRenewal: jobs.prescriptionRenewal?.enabled === false ? false : jobs.prescriptionRenewal?.schedule,
+    reEngagement: jobs.patientReEngagement?.enabled === false ? false : jobs.patientReEngagement?.schedule,
   });
 };
 
@@ -174,9 +179,13 @@ export const runCronJobNow = asyncHandler(async (req, res) => {
   const runner = CRON_JOB_RUNNERS[jobName];
   if (!runner) throw AppError.badRequest('Invalid job name');
 
-  await runner();
-  await auditFromReq(req, 'CRON_JOB_MANUAL_TRIGGER', `SystemSettings:cron:${jobName}`, { jobName, triggeredBy: req.user.name }, 'systemSettings').catch(() => {});
-  res.json({ success: true, message: 'Job completed successfully.' });
+  const result = await runner();
+  await auditFromReq(req, 'CRON_JOB_MANUAL_TRIGGER', `SystemSettings:cron:${jobName}`, { jobName, triggeredBy: req.user.name, result }, 'systemSettings').catch(() => {});
+  res.json({
+    success: true,
+    message: 'Job completed successfully.',
+    data: result || {},
+  });
 });
 
 export const updateClinicSettings = asyncHandler(async (req, res) => {

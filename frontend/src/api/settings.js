@@ -9,6 +9,8 @@ export const updateEmailTemplate = (data) => client.put('/settings/email-templat
 export const testEmailConnection = () => client.post('/settings/test-email');
 export const updateCronJobs = (data) => client.put('/settings/cron-jobs', data);
 export const runJobManually = (jobName) => client.post(`/settings/run-job/${jobName}`);
+export const sendScheduledJobTestEmail = (jobKey, testEmail) =>
+  client.post(`/engagement/test/${encodeURIComponent(jobKey)}`, { testEmail });
 export const updateClinicSettings = (data) => client.put('/settings/clinic', data);
 export const uploadClinicLogo = (formData) => client.post('/settings/clinic/logo', formData, {
   headers: { 'Content-Type': 'multipart/form-data' },
