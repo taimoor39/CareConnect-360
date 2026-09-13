@@ -21,6 +21,7 @@ const JOB_KEY_TO_RULE = {
   missedAppointment: 'ER-2',
   prescriptionRenewal: 'ER-3',
   patientReEngagement: 'ER-4',
+  reEngagement: 'ER-4',
   aiSummaryReady: 'ER-5',
 };
 
@@ -137,6 +138,7 @@ export const sendEngagementTestEmail = asyncHandler(async (req, res) => {
     reportTitle: 'Sample Lab Report',
     portalLink: `${portalBase}/patient/reports`,
     bookingLink: `${portalBase}/login`,
+    rescheduleLink: `${portalBase}/login`,
   };
 
   try {

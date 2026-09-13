@@ -16,7 +16,7 @@ import {
 import AppError from '../utils/AppError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { auditFromReq } from '../utils/audit.js';
-import { invalidateSettingsCache, sendMailWithRetry } from '../utils/emailService.js';
+import { invalidateSettingsCache, sendMailWithRetry, toEmailErrorMessage } from '../utils/emailService.js';
 import { paginationMeta, parsePagination, searchRegex } from '../utils/query.js';
 import { probeAiServiceForSettings } from '../utils/systemHealthChecks.js';
 
@@ -122,8 +122,16 @@ export const updateEmailTemplate = asyncHandler(async (req, res) => {
 });
 
 export const sendTestEmail = asyncHandler(async (req, res) => {
+  const to = String(req.body?.testEmail || req.body?.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    throw AppError.badRequest('Enter a valid email address');
+  }
+
   const settings = await ensureSettings();
   const emailConfig = settings.email || {};
+  if (!emailConfig.smtpHost || !emailConfig.smtpUser || !emailConfig.fromEmail) {
+    throw AppError.badRequest('SMTP is not fully configured. Set host, user, and from email first.');
+  }
 
   try {
     const transporter = nodemailer.createTransport({
@@ -136,18 +144,18 @@ export const sendTestEmail = asyncHandler(async (req, res) => {
     await sendMailWithRetry(
       () =>
         transporter.sendMail({
-          from: `${emailConfig.fromName} <${emailConfig.fromEmail}>`,
-          to: req.user.email,
+          from: `"${emailConfig.fromName || 'CareConnect 360'}" <${emailConfig.fromEmail}>`,
+          to,
           subject: 'CareConnect 360 — Email Test',
           html: '<h2>Email configuration is working!</h2><p>This is a test email from CareConnect 360.</p>',
         }),
       { logLabel: 'SMTP_TEST_EMAIL' },
     );
   } catch (err) {
-    throw AppError.badRequest(err.message || 'Unable to send test email');
+    throw AppError.badRequest(toEmailErrorMessage(err) || err.message || 'Unable to send test email');
   }
 
-  res.json({ success: true, message: `Test email sent to ${req.user.email}` });
+  res.json({ success: true, message: `Test email sent to ${to}` });
 });
 
 export const updateCronJobsSettings = asyncHandler(async (req, res) => {

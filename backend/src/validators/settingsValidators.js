@@ -114,6 +114,16 @@ export const changePasswordValidator = [
     }),
 ];
 
+export const testEmailValidator = [
+  body('testEmail')
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Enter a valid email address')
+    .trim()
+    .toLowerCase(),
+];
+
 export const runJobValidator = [
   param('jobName').isIn(JOB_NAMES).withMessage('Invalid job name'),
 ];

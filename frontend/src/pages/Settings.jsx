@@ -411,15 +411,17 @@ function Settings() {
               smtpTesting={smtpTesting}
               onChange={(next) => setCategory('email', next)}
               onSave={saveEmail}
-              onTest={async () => {
+              onTest={async (testEmail) => {
                 setSmtpTesting(true);
                 setSmtpStatus(null);
                 try {
-                  const res = await testEmailConnection();
+                  const res = await testEmailConnection(testEmail);
                   setSmtpStatus({ type: 'success', message: res.data?.message || 'Test email sent' });
                   toast.success(res.data?.message || 'Test email sent');
                 } catch (err) {
-                  setSmtpStatus({ type: 'error', message: `SMTP connection failed: ${err.response?.data?.message || 'Unknown error'}` });
+                  const message = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || 'Unknown error';
+                  setSmtpStatus({ type: 'error', message: `SMTP connection failed: ${message}` });
+                  throw err;
                 } finally {
                   setSmtpTesting(false);
                 }

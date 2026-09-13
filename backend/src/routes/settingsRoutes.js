@@ -36,6 +36,7 @@ import {
   medicalTermValidator,
   runJobValidator,
   securityValidator,
+  testEmailValidator,
 } from '../validators/settingsValidators.js';
 
 const router = Router();
@@ -67,7 +68,7 @@ router.get('/', getSettings);
 router.put('/security', securityValidator, validate, updateSecuritySettings);
 router.put('/email', emailValidator, validate, updateEmailSettings);
 router.put('/email-templates', emailTemplateValidator, validate, updateEmailTemplate);
-router.post('/test-email', sendTestEmail);
+router.post('/test-email', testEmailValidator, validate, sendTestEmail);
 router.put('/cron-jobs', cronJobsValidator, validate, updateCronJobsSettings);
 router.post('/run-job/:jobName', runJobValidator, validate, runCronJobNow);
 router.put('/clinic', clinicValidator, validate, updateClinicSettings);

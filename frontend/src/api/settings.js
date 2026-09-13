@@ -6,7 +6,7 @@ export const getSettings = () => client.get('/settings');
 export const updateSecuritySettings = (data) => client.put('/settings/security', data);
 export const updateEmailSettings = (data) => client.put('/settings/email', data);
 export const updateEmailTemplate = (data) => client.put('/settings/email-templates', data);
-export const testEmailConnection = () => client.post('/settings/test-email');
+export const testEmailConnection = (testEmail) => client.post('/settings/test-email', { testEmail });
 export const updateCronJobs = (data) => client.put('/settings/cron-jobs', data);
 export const runJobManually = (jobName) => client.post(`/settings/run-job/${jobName}`);
 export const sendScheduledJobTestEmail = (jobKey, testEmail) =>
