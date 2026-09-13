@@ -444,3 +444,13 @@ Leave `ENFORCE_EMAIL_VERIFICATION` unset or `false` locally, or configure SMTP s
 ## License
 
 Private — all rights reserved. Do not copy, distribute, or use this code without permission from the project owner.
+
+## Authors
+
+Taimoor Sajjad (076411)
+Sachal Ameer (076377)
+Hamza Afzal (076450)
+
+Supervisor: Prof. USMAN SAIF
+Department: Department of Computing & Information Technology Govt. College Satellite Town, Gujranwala Affiliated with University of the Punjab
+Semester: 8th Semester
