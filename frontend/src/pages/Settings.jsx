@@ -510,8 +510,10 @@ function Settings() {
                   const res = await uploadClinicLogo(fd);
                   const saved = res.data?.data?.logoUrl || localUrl;
                   setCategory('clinic', { ...(formStates.clinic.data || {}), logoUrl: saved });
+                  URL.revokeObjectURL(localUrl);
                   toast.success('Clinic settings saved');
                 } catch (err) {
+                  URL.revokeObjectURL(localUrl);
                   toast.error(err.response?.data?.message || 'Failed to upload logo');
                 }
               }}

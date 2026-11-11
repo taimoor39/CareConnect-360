@@ -189,7 +189,10 @@ app.use((error, _req, res, _next) => {
 });
 
 // ─── Startup / shutdown ───────────────────────────────────────────────────
-const port = process.env.PORT || 8000;
+const PORT = Number.parseInt(process.env.PORT || '8000', 10);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65_535) {
+  throw new Error('PORT must be a valid TCP port between 1 and 65535');
+}
 let httpServer;
 
 /** Ensures SystemSettings singleton exists and empty template bodies are filled. */
@@ -247,7 +250,7 @@ const startServer = async () => {
         ? false
         : schedules?.patientReEngagement?.schedule,
     });
-    httpServer = app.listen(port, () => console.log(`Server is running on port ${port}`));
+    httpServer = app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
     initAdminRealtime(httpServer, { corsOrigins: allowedOrigins });
   } catch (error) {
     console.error('Failed to start server:', error.message);

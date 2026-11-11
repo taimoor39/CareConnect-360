@@ -216,8 +216,8 @@ export const updateClinicSettings = asyncHandler(async (req, res) => {
 });
 
 export const uploadClinicLogo = asyncHandler(async (req, res) => {
-  if (!req.file) throw AppError.badRequest('Logo file is required');
-  const logoUrl = `/uploads/logos/${req.file.filename}`;
+  if (!req.file?.buffer) throw AppError.badRequest('Logo file is required');
+  const logoUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
   await SystemSettings.findOneAndUpdate({}, { $set: { 'clinic.logoUrl': logoUrl, updatedBy: req.user._id } }, { upsert: true, new: true });
   res.json({ success: true, data: { logoUrl } });
 });

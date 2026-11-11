@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 
@@ -41,14 +39,8 @@ import {
 
 const router = Router();
 
-const logoDir = path.resolve(process.cwd(), 'uploads', 'logos');
-fs.mkdirSync(logoDir, { recursive: true });
-
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, logoDir),
-    filename: (_req, file, cb) => cb(null, `clinic-logo-${Date.now()}${path.extname(file.originalname)}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/jpg'];
